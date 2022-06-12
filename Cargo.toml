@@ -2,6 +2,23 @@
 name = "tp"
 version = "0.1.0"
 edition = "2021"
+default-run = "alglobo"
+
+[[bin]]
+name = "alglobo"
+path = "src/alglobo.rs"
+
+[[bin]]
+name = "bank"
+path = "src/bank.rs"
+
+[[bin]]
+name = "airline"
+path = "src/airline.rs"
+
+[[bin]]
+name = "hotel"
+path = "src/hotel.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
