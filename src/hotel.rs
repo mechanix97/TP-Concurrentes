@@ -8,16 +8,20 @@ mod logger;
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7879").unwrap();
     let pool = ThreadPool::new(4);
+    let logger = logger::Logger::new("hotel.log".to_string());
 
+    
     for stream in listener.incoming() {
-        let stream = stream.unwrap();    
+        let l = logger.clone();
+        let stream = stream.unwrap();
         pool.execute(|| {
-            handle_connection(stream);
+            handle_connection(stream, l);
         });
     }
 }
 
-fn handle_connection(mut stream: TcpStream) {
+fn handle_connection(mut stream: TcpStream, logger: logger::Logger) {
+    logger.log("Nueva conexion HOTEL\n".to_string());
     let mut reader = io::BufReader::new(&mut stream);
     loop {
         let mut s = String::new();
