@@ -21,7 +21,7 @@ fn main() {
 }
 
 fn handle_connection(mut stream: TcpStream, logger: logger::Logger) {
-    logger.log("Nueva conexion HOTEL\n".to_string());
+    logger.log(format!("New connection: from {}\n", stream.peer_addr().unwrap()));
     let mut reader = io::BufReader::new(&mut stream);
     loop {
         let mut s = String::new();
@@ -31,27 +31,31 @@ fn handle_connection(mut stream: TcpStream, logger: logger::Logger) {
             Err(_err) => 0,
         };
         if s.is_empty() || len == 0 {
-            return;
+            break;
         }
         match commons::deserialize(s.to_string()) {
             Ok(val) => match val {
                 commons::Msg::Payment { id, amount } => {
-                    println!("Payment: {}, {}", id, amount)
+                    logger.log(format!("Payment from {} with amount {}\n", id, amount))
                 }
                 commons::Msg::Reversal { id } => {
-                    println!("Reversal: {}", id)
+                    logger.log(format!("Reversal transaction {}\n", id))
                 }
                 commons::Msg::Ack => {
-                    println!("ACK")
+                    logger.log(format!("ACK\n"))
                 }
                 commons::Msg::Nack => {
-                    println!("NACK")
+                    logger.log(format!("NACK\n"))
                 }
                 commons::Msg::Quit => {
-                    println!("QUIT")
+                    logger.log(format!("QUIT\n"));
                 }
             },
-            Err(err) => println!("ERROR: {}", err),
+            Err(err) => {
+                println!("ERROR: {}", err);
+                break;
+            },
         };
     }
+    logger.log(format!("Connection closed from: {}\n", stream.peer_addr().unwrap()));
 }

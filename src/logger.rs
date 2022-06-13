@@ -1,11 +1,10 @@
 use std::fs;
 use std::io::prelude::*;
-use std::path::Path;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
-
+use chrono::Local;
 pub struct Logger {
     sender: Arc<Mutex<mpsc::Sender<String>>>,
     writter: Arc<Writter>,
@@ -36,7 +35,6 @@ impl Clone for Logger{
 }
 
 pub struct Writter {
-    filename: String,
     thread: Option<thread::JoinHandle<()>>,
 }
 
@@ -46,22 +44,33 @@ impl Writter {
         let thread = thread::spawn(move || {
             loop {
                 match receiver.lock().unwrap().recv() {
-                    Ok(line) => file.write_all(line.as_bytes()).unwrap(),
+                    Ok(line) => {
+
+                        file.write_all(
+                            format!("{}: {}", Local::now().format("%Y-%m-%d %H:%M:%S"), line).as_bytes()
+                        ).unwrap();}
+                        ,
                     Err(mpsc::RecvError) => break, //closed
                 }
             }
         });
 
         Writter {
-            filename: filename,
             thread: Some(thread),
         }
+    }
+}
+
+impl Drop for Writter{
+    fn drop(self: &mut Writter) {
+        self.thread.take().unwrap().join().unwrap();
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
 
     #[test]
     fn multiple_thread_log() {
