@@ -1,49 +1,23 @@
-use std::io::{self, BufRead};
-use std::net::{TcpListener, TcpStream};
+use std::io::prelude::*;
+use std::io::BufReader;
+use std::net::TcpStream;
+use std::fs;
 mod commons;
+//mod Payment;
 
 fn main() {
-    let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
+    let mut bank = TcpStream::connect("127.0.0.1:7879").unwrap();
+    let mut airline = TcpStream::connect("127.0.0.1:7880").unwrap();
+    let mut hotel = TcpStream::connect("127.0.0.1:7881").unwrap();
 
-    for stream in listener.incoming() {
-        let stream = stream.unwrap();
+    let filename = r"input.txt";
+    let file = File::open(filename).expect("file not found!");
+    let  buf_reader = BufReader::new(file);
 
-        handle_connection(stream);
+    for line in buf_reader.lines() {
+        println!("{}", line?);
     }
+
 }
 
-fn handle_connection(mut stream: TcpStream) {
-    let mut reader = io::BufReader::new(&mut stream);
-    loop {
-        let mut s = String::new();
 
-        let len = match reader.read_line(&mut s) {
-            Ok(val) => val,
-            Err(_err) => 0,
-        };
-        if s.is_empty() || len == 0 {
-            println!("EOF");
-            return;
-        }
-        match commons::deserialize(s.to_string()) {
-            Ok(val) => match val {
-                commons::Msg::Payment { id, amount } => {
-                    println!("Payment: {}, {}", id, amount)
-                }
-                commons::Msg::Reversal { id } => {
-                    println!("Reversal: {}", id)
-                }
-                commons::Msg::Ack => {
-                    println!("ACK")
-                }
-                commons::Msg::Nack => {
-                    println!("NACK")
-                }
-                commons::Msg::Quit => {
-                    println!("QUIT")
-                }
-            },
-            Err(err) => println!("ERROR: {}", err),
-        };
-    }
-}

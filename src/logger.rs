@@ -77,7 +77,7 @@ mod tests {
         fs::remove_file("test/multiple_thread_log.txt").unwrap();
 
         let (sender, receiver) = mpsc::channel();
-        let writter = Writter::new(
+        let _ = Writter::new(
             Arc::new(Mutex::new(receiver)),
             "test/multiple_thread_log.txt".to_string(),
         );
@@ -94,7 +94,7 @@ mod tests {
         }
 
         for t in workers {
-            t.join();
+            t.join().unwrap();
         }
         assert!(Path::new("test/multiple_thread_log.txt").exists());
     }
