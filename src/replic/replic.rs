@@ -2,6 +2,7 @@ use std::io::prelude::*;
 use std::io::{self, BufRead};
 use std::net::TcpListener;
 use std::net::TcpStream;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 
@@ -14,12 +15,22 @@ pub struct Replic {
     port: String,
     is_leader: bool,
     join_handle: Option<JoinHandle<()>>,
+    connections: Arc<Mutex<Vec<(TcpStream, u32, String, String)>>>,
     //leader_hostname: String,
     //leader_port: String,
     //partners:
 }
 
 impl Replic {
+    pub fn join(self: &mut Self) {
+        match self.join_handle.take() {
+            Some(h) => {
+                h.join().unwrap();
+            }
+            None => {}
+        }
+    }
+
     pub fn new(id: u32, hostname: &str, port: &str) -> Replic {
         Replic {
             id: id,
@@ -27,6 +38,7 @@ impl Replic {
             port: port.to_string(),
             is_leader: false,
             join_handle: None,
+            connections: Arc::new(Mutex::new(vec![])),
         }
     }
 
@@ -35,14 +47,15 @@ impl Replic {
 
         let h = self.hostname.clone();
         let p = self.port.clone();
-        
+        let connections = self.connections.clone();
+
         let t = thread::spawn(move || {
-            
             let listener = TcpListener::bind(format!("{}:{}", h, p)).unwrap();
             let pool = lib::ThreadPool::new(100);
-            
+
             for stream in listener.incoming() {
-                pool.execute(|| {
+                let connections_pool = connections.clone();
+                pool.execute(move || {
                     let mut reader = io::BufReader::new(stream.unwrap());
                     loop {
                         let mut s = String::new();
@@ -57,18 +70,42 @@ impl Replic {
                         match commons::deserialize_dist(s.to_string()) {
                             Ok(val) => match val {
                                 commons::DistMsg::Discover { id, hostname, port } => {
-                                    println!("Discover: ID:{}, {}:{}", id, hostname, port);
                                     let mut nstream =
-                                    TcpStream::connect(format!("{}:{}", hostname, port)).unwrap();
-                                    nstream.write(
-                                        &(serde_json::to_string(&commons::DistMsg::Ack)
-                                        .unwrap()
-                                            + "\n")
-                                            .as_bytes(),
-                                    )
-                                    .unwrap();
+                                        TcpStream::connect(format!("{}:{}", hostname, port))
+                                            .unwrap();
+                                    nstream
+                                        .write(
+                                            &(serde_json::to_string(&commons::DistMsg::Ack)
+                                                .unwrap()
+                                                + "\n")
+                                                .as_bytes(),
+                                        )
+                                        .unwrap();
+                                    let h = hostname.clone();
+                                    let p = port.clone();
+                                        ({
+                                        connections_pool
+                                            .lock()
+                                            .unwrap()
+                                            .push((nstream, id, h, p));
+                                    });
 
+                                    let v = &mut *connections_pool.lock().unwrap();
 
+                                    for conn in &mut *v {
+                                        conn.0
+                                            .write(
+                                                &(serde_json::to_string(
+                                                    &commons::DistMsg::NewReplic { id: id, hostname: hostname.clone(), port: port.clone() },
+                                                )
+                                                .unwrap()
+                                                    + "\n")
+                                                    .as_bytes(),
+                                            ).unwrap();
+                                    }
+                                }
+                                commons::DistMsg::NewReplic { id, hostname, port } => {
+                                    println!("{} {} {}", id, hostname, port);
                                 }
                                 commons::DistMsg::Ack => {
                                     println!("ACK")
@@ -112,6 +149,9 @@ impl Replic {
                                 commons::DistMsg::Discover { id, hostname, port } => {
                                     println!("Discover: ID:{}, {}:{}", id, hostname, port);
                                 }
+                                commons::DistMsg::NewReplic { id, hostname, port } => {
+                                    println!("{} {} {}", id, hostname, port);
+                                }
                                 commons::DistMsg::Ack => {
                                     println!("ACK")
                                 }
@@ -144,13 +184,6 @@ impl Replic {
             )
             .unwrap();
     }
-
-    pub fn join(self: &mut Self) {
-        match self.join_handle.take() {
-            Some(h) => {h.join().unwrap();},
-            None => {}
-        }
-    }
     /*
         pub fn broadcast(&self, msg: commons::msg){
 
@@ -163,4 +196,3 @@ impl Replic {
         }
     */
 }
-

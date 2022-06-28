@@ -19,6 +19,11 @@ pub enum DistMsg {
         hostname: String,
         port: String,
     },
+    NewReplic {
+        id: u32,
+        hostname: String,
+        port: String,
+    },
     Ack,
     Nack,
 }
