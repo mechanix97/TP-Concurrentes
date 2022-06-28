@@ -1,8 +1,11 @@
 use std::io::{self, BufRead};
 use std::net::TcpListener;
 use std::net::TcpStream;
-use tp::ThreadPool;
+
+pub use crate::commons::commons::*;
+pub use crate::lib::lib::*;
 mod commons;
+mod lib;
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7879").unwrap();
@@ -28,24 +31,24 @@ fn handle_connection(mut stream: TcpStream) {
         if s.is_empty() || len == 0 {
             return;
         }
-        match commons::deserialize(s.to_string()) {
-            Ok(val) => match val {
-                commons::Msg::Payment { id, amount } => {
+        match deserialize(s.to_string()) {
+            Ok(val) => todo!()/*match val {
+                Msg::Payment { id, amount } => {
                     println!("Payment: {}, {}", id, amount)
                 }
-                commons::Msg::Reversal { id } => {
+                Msg::Reversal { id } => {
                     println!("Reversal: {}", id)
                 }
-                commons::Msg::Ack => {
+                Msg::Ack => {
                     println!("ACK")
                 }
-                commons::Msg::Nack => {
+                Msg::Nack => {
                     println!("NACK")
                 }
-                commons::Msg::Quit => {
+                Msg::Quit => {
                     println!("QUIT")
                 }
-            },
+            }*/,
             Err(err) => println!("ERROR: {}", err),
         };
     }
