@@ -16,13 +16,13 @@ pub struct Replic {
     is_leader: bool,
     join_handle: Option<JoinHandle<()>>,
     connections: Arc<Mutex<Vec<(TcpStream, u32, String, String)>>>,
-    //leader_hostname: String,
-    //leader_port: String,
-    //partners:
+    threadpool: Arc<lib::ThreadPool>,
 }
 
 impl Replic {
     pub fn join(self: &mut Self) {
+        drop(&self.threadpool);
+
         match self.join_handle.take() {
             Some(h) => {
                 h.join().unwrap();
@@ -39,6 +39,7 @@ impl Replic {
             is_leader: false,
             join_handle: None,
             connections: Arc::new(Mutex::new(vec![])),
+            threadpool: Arc::new(lib::ThreadPool::new(100)),
         }
     }
 
@@ -48,14 +49,15 @@ impl Replic {
         let h = self.hostname.clone();
         let p = self.port.clone();
         let connections = self.connections.clone();
-
+        let pool = self.threadpool.clone();
+        
         let t = thread::spawn(move || {
             let listener = TcpListener::bind(format!("{}:{}", h, p)).unwrap();
-            let pool = lib::ThreadPool::new(100);
-
             for stream in listener.incoming() {
+            
+                let pool2 = pool.clone();
                 let connections_pool = connections.clone();
-                pool.execute(move || {
+                pool2.execute(move || {
                     let mut reader = io::BufReader::new(stream.unwrap());
                     loop {
                         let mut s = String::new();
@@ -70,41 +72,57 @@ impl Replic {
                         match commons::deserialize_dist(s.to_string()) {
                             Ok(val) => match val {
                                 commons::DistMsg::Discover { id, hostname, port } => {
-                                    let mut nstream =
+                                    //conexion a replica entrante
+                                    let mut newreplicstream =
                                         TcpStream::connect(format!("{}:{}", hostname, port))
                                             .unwrap();
-                                    nstream
-                                        .write(
-                                            &(serde_json::to_string(&commons::DistMsg::Ack)
-                                                .unwrap()
-                                                + "\n")
-                                                .as_bytes(),
-                                        )
-                                        .unwrap();
-                                    let h = hostname.clone();
-                                    let p = port.clone();
-                                        ({
-                                        connections_pool
-                                            .lock()
-                                            .unwrap()
-                                            .push((nstream, id, h, p));
-                                    });
 
-                                    let v = &mut *connections_pool.lock().unwrap();
-
-                                    for conn in &mut *v {
+                                    for conn in &mut *&mut *connections_pool.lock().unwrap() {
+                                        //le informo a las demas replicas de la nueva replica
                                         conn.0
                                             .write(
                                                 &(serde_json::to_string(
-                                                    &commons::DistMsg::NewReplic { id: id, hostname: hostname.clone(), port: port.clone() },
+                                                    &commons::DistMsg::NewReplic {
+                                                        id: id,
+                                                        hostname: hostname.clone(),
+                                                        port: port.clone(),
+                                                    },
                                                 )
                                                 .unwrap()
                                                     + "\n")
                                                     .as_bytes(),
-                                            ).unwrap();
+                                            )
+                                            .unwrap();
+
+                                        //Le informo a la nueva replica de las demas replicas
+                                        newreplicstream
+                                            .write(
+                                                &(serde_json::to_string(
+                                                    &commons::DistMsg::NewReplic {
+                                                        id: conn.1,
+                                                        hostname: conn.2.clone(),
+                                                        port: conn.3.clone(),
+                                                    },
+                                                )
+                                                .unwrap()
+                                                    + "\n")
+                                                    .as_bytes(),
+                                            )
+                                            .unwrap();
                                     }
+
+                                    //agrego la nueva replica a las conexiones
+                                    ({
+                                        connections_pool.lock().unwrap().push((
+                                            newreplicstream,
+                                            id,
+                                            hostname,
+                                            port,
+                                        ));
+                                    });
                                 }
                                 commons::DistMsg::NewReplic { id, hostname, port } => {
+                                    //No deberia entrar aca
                                     println!("{} {} {}", id, hostname, port);
                                 }
                                 commons::DistMsg::Ack => {
@@ -127,12 +145,16 @@ impl Replic {
     pub fn start_as_replic(self: &mut Self, replic_hostname: &str, replic_port: &str) {
         let h = self.hostname.clone();
         let p = self.port.clone();
+        let connections = self.connections.clone();
+        let pool = self.threadpool.clone();
+        let listener = TcpListener::bind(format!("{}:{}", h, p)).unwrap();
 
         let t = thread::spawn(move || {
-            let listener = TcpListener::bind(format!("{}:{}", h, p)).unwrap();
-            let pool = lib::ThreadPool::new(100);
+    
             for stream in listener.incoming() {
-                pool.execute(|| {
+                let pool2 = pool.clone();
+                let connections_pool = connections.clone();
+                pool2.execute(move || {
                     let mut reader = io::BufReader::new(stream.unwrap());
                     loop {
                         let mut s = String::new();
@@ -147,10 +169,24 @@ impl Replic {
                         match commons::deserialize_dist(s.to_string()) {
                             Ok(val) => match val {
                                 commons::DistMsg::Discover { id, hostname, port } => {
+                                    //No deberia entrar aca
                                     println!("Discover: ID:{}, {}:{}", id, hostname, port);
                                 }
                                 commons::DistMsg::NewReplic { id, hostname, port } => {
                                     println!("{} {} {}", id, hostname, port);
+
+                                    let newreplicstream =
+                                        TcpStream::connect(format!("{}:{}", hostname, port))
+                                            .unwrap();
+
+                                    ({
+                                        connections_pool.lock().unwrap().push((
+                                            newreplicstream,
+                                            id,
+                                            hostname,
+                                            port,
+                                        ));
+                                    });
                                 }
                                 commons::DistMsg::Ack => {
                                     println!("ACK")

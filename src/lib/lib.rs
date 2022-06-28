@@ -1,11 +1,11 @@
+use std::sync::Mutex;
 use std::sync::mpsc;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::thread;
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
-    sender: mpsc::Sender<Message>,
+    sender: Arc<Mutex<mpsc::Sender<Message>>>,
 }
 
 type Job = Box<dyn FnOnce() + Send + 'static>;
@@ -29,7 +29,7 @@ impl ThreadPool {
             workers.push(Worker::new(id, Arc::clone(&receiver)));
         }
 
-        ThreadPool { workers, sender }
+        ThreadPool { workers: workers, sender: Arc::new(Mutex::new(sender)) }
     }
 
     pub fn execute<F>(&self, f: F)
@@ -38,14 +38,14 @@ impl ThreadPool {
     {
         let job = Box::new(f);
 
-        self.sender.send(Message::NewJob(job)).unwrap();
+        self.sender.lock().unwrap().send(Message::NewJob(job)).unwrap();
     }
 }
 
 impl Drop for ThreadPool {
     fn drop(&mut self) {
         for _ in &self.workers {
-            self.sender.send(Message::Terminate).unwrap();
+            self.sender.lock().unwrap().send(Message::Terminate).unwrap();
         }
 
         for worker in &mut self.workers {
