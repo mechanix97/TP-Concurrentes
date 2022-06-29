@@ -24,6 +24,8 @@ pub enum DistMsg {
         hostname: String,
         port: String,
     },
+    Ping,
+    Pong,
     Ack,
     Nack,
 }
