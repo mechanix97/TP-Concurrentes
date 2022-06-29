@@ -158,7 +158,14 @@ impl Replic {
                 });
             }
         });
+        let mjh = thread::spawn(move || loop {
+            todo!(); 
+            //Read input file
+            //broadcast commit when operation is ended correct
+            //broadcast rollback when operation fails
+        });
 
+        self.main_join_handle = Some(mjh);
         self.join_handle = Some(t);
     }
 
@@ -230,9 +237,7 @@ impl Replic {
                     }
                 });
             }
-        });
-
-        self.join_handle = Some(t);
+        });        
 
         let mut stream =
             TcpStream::connect(format!("{}:{}", replic_hostname.clone(), replic_port.clone())).unwrap();
@@ -255,6 +260,7 @@ impl Replic {
             //agrego conexion del leader a la lista (asumo id = 0 mas bajo posible)
             self.connections.lock().unwrap().push((stream, 0, h.to_string(), r.to_string(), true));
         }
+       
         //replic main loop
         let main_leader_alive = self.leader_alive.clone();
         let connections = self.connections.clone();
@@ -285,7 +291,6 @@ impl Replic {
                         match commons::deserialize_dist(s.to_string())  {
                             Ok(val) => match val {
                                 commons::DistMsg::Pong => {
-                                    println!("PONG");
                                     main_leader_alive.store(true, Ordering::Relaxed);
                                 }
                                 _ => {}
@@ -293,8 +298,7 @@ impl Replic {
                             Err(_) => {}
                         }
                         if !main_leader_alive.load(Ordering::Relaxed) {
-                            println!("NO RESPONSE");
-                            //NO HUBO RESPUESTA DEL LIDER
+                            todo!();
                             //HACER ELECTION
                         }
                     }                  
@@ -302,7 +306,9 @@ impl Replic {
             }
 
         });
+
         self.main_join_handle = Some(mjh);
+        self.join_handle = Some(t);
     }
 
 }
