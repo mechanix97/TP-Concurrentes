@@ -51,7 +51,7 @@ impl LeaderElection {
             // ya esta buscando lider
             return
         }
-        println!("[{}] buscando lider", self.id);
+        // println!("[{}] buscando lider", self.id);
         *self.got_ok.0.lock().unwrap() = false;
         *self.leader_id.0.lock().unwrap() = None;
         self.send_election();
@@ -61,7 +61,6 @@ impl LeaderElection {
         } else {
             self.leader_id.1.wait_while(self.leader_id.0.lock().unwrap(), |leader_id| leader_id.is_none() );
         }
-        
     }
 
     fn id_to_msg(&self, header:u8) -> Vec<u8> {
@@ -80,7 +79,7 @@ impl LeaderElection {
 
     fn make_me_leader(&self) {
         // El nuevo coordinador se anuncia con un mensaje COORDINATOR
-        println!("[{}] me anuncio como lider", self.id);
+        // println!("[{}] me anuncio como lider", self.id);
         let msg = self.id_to_msg(b'C');
         for peer_id in 0..TEAM_MEMBERS {
             if peer_id != self.id {
@@ -101,12 +100,12 @@ impl LeaderElection {
             }
             match &buf[0] {
                 b'O' => {
-                    println!("[{}] recibí OK de {}", self.id, id_from);
+                    // println!("[{}] recibí OK de {}", self.id, id_from);
                     *self.got_ok.0.lock().unwrap() = true;
                     self.got_ok.1.notify_all();
                 }
                 b'E' => {
-                    println!("[{}] recibí Election de {}", self.id, id_from);
+                    // println!("[{}] recibí Election de {}", self.id, id_from);
                     if id_from < self.id {
                         self.socket.send_to(&self.id_to_msg(b'O'), id_to_ctrladdr(id_from)).unwrap();
                         let mut me = self.clone();
@@ -114,12 +113,12 @@ impl LeaderElection {
                     }
                 }
                 b'C' => {
-                    println!("[{}] recibí nuevo coordinador {}", self.id, id_from);
+                    // println!("[{}] recibí nuevo coordinador {}", self.id, id_from);
                     *self.leader_id.0.lock().unwrap() = Some(id_from);
                     self.leader_id.1.notify_all();
                 }
                 _ => {
-                    println!("[{}] ??? {}", self.id, id_from);
+                    // println!("[{}] ??? {}", self.id, id_from);
                 }
             }
         }
