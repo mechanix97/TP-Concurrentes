@@ -61,7 +61,7 @@ impl LeaderElection {
         } else {
             self.leader_id.1.wait_while(self.leader_id.0.lock().unwrap(), |leader_id| leader_id.is_none() );
         }
-
+        
     }
 
     fn id_to_msg(&self, header:u8) -> Vec<u8> {
@@ -88,6 +88,7 @@ impl LeaderElection {
             }
         }
         *self.leader_id.0.lock().unwrap() = Some(self.id);
+        self.leader_id.1.notify_all();
     }
 
     fn responder(&mut self) {
