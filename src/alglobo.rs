@@ -7,7 +7,7 @@ use rand::{Rng, thread_rng};
 mod bully;
 use bully::LeaderElection;
 
-const TIMEOUT: Duration = Duration::from_secs(10);
+const TIMEOUT: Duration = Duration::from_secs(4);
 
 fn id_to_dataaddr(id: usize) -> String { "127.0.0.1:1235".to_owned() + &*id.to_string() }
 
@@ -27,31 +27,37 @@ fn team_member(id: usize) {
         let mut buf = [0; 4];
 
         loop {
+            if thread_rng().gen_range(0, 1000) >= 990 {
+                break;
+            }
             if scrum_master.am_i_leader() {
-                println!("[{}] soy SM", id);
-                if thread_rng().gen_range(0, 100) >= 90 {
-                    println!("[{}] me tomo vacaciones", id);
-                    break;
+                println!("[{}] soy el lider", id);
+
+                // Simulo trabajo
+                thread::sleep(Duration::from_millis(500));
+
+                socket.set_read_timeout(Some(Duration::from_millis(1))).unwrap();
+                while let Ok((_, from)) = socket.recv_from(&mut buf) {
+                    socket.send_to("PONG".as_bytes(), from).unwrap();
                 }
-                socket.set_read_timeout(None).unwrap();
-                let (_, from) = socket.recv_from(&mut buf).unwrap();
-                socket.send_to("PONG".as_bytes(), from).unwrap();
             } else {
+                println!("[{}] soy una réplica", id);
                 let leader_id = scrum_master.get_leader_id();
-                println!("[{}] pido trabajo al SM {}", id, leader_id);
+
+                thread::sleep(Duration::from_millis(1000));
+
                 socket.send_to("PING".as_bytes(), id_to_dataaddr(leader_id)).unwrap();
                 socket.set_read_timeout(Some(TIMEOUT)).unwrap();
-                if let Ok((_, _)) = socket.recv_from(&mut buf) {
-                    println!("[{}] trabajando", id);
-                    thread::sleep(Duration::from_millis(thread_rng().gen_range(1000, 3000)));
-                } else {
-                    // por simplicidad consideramos que cualquier error necesita un lider nuevo
-                    scrum_master.find_new()
+                match socket.recv_from(&mut buf) {
+                    Ok((_, _)) => {},
+                    _ => {
+                        scrum_master.find_new()
+                    },
                 }
             }
         }
-
+        println!("[{}] sale de servicio", id);
         scrum_master.stop();
-        thread::sleep(Duration::from_secs(5));
+        thread::sleep(Duration::from_secs(20));
     }
 }
