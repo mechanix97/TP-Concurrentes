@@ -33,7 +33,7 @@ fn main() {
 fn read_q() {
     let mut input = String::new();
     match io::stdin().read_line(&mut input) {
-        Ok(n) => {
+        Ok(_) => {
             if !input.contains("q") {
                 read_q()
             }
