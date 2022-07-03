@@ -24,6 +24,9 @@ pub enum DistMsg {
         hostname: String,
         port: String,
     },
+    Election{
+        id: u32
+    },
     Ping,
     Pong,
 }
