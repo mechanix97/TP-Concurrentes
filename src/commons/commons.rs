@@ -27,6 +27,9 @@ pub enum DistMsg {
     Election{
         id: u32
     },
+    Leader{
+        id: u32
+    },
     Ping,
     Pong,
 }

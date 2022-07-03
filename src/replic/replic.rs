@@ -2,7 +2,7 @@ use std::io::prelude::*;
 use std::io::{self, BufRead};
 use std::net::TcpListener;
 use std::net::TcpStream;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Condvar};
 use std::{thread, time};
 use std::thread::JoinHandle;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -20,6 +20,7 @@ pub struct Replic {
     connections: Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>,
     threadpool: Arc<lib::ThreadPool>,
     leader_alive: Arc<AtomicBool>,
+    leader_ok: Arc<(Mutex<bool>, Condvar)>
 }
 
 impl Replic {
@@ -45,7 +46,8 @@ impl Replic {
             main_join_handle: None,
             connections: Arc::new(Mutex::new(vec![])),
             threadpool: Arc::new(lib::ThreadPool::new(100)),
-            leader_alive: Arc::new(AtomicBool::new(false))
+            leader_alive: Arc::new(AtomicBool::new(false)),
+            leader_ok: Arc::new((Mutex::new(true), Condvar::new()))
         }
     }
 
@@ -55,11 +57,9 @@ impl Replic {
         }
         self.start();
 
-        let mjh = thread::spawn(move || loop {
-            //Read input file
-            //broadcast commit when operation is ended correct
-            //broadcast rollback when operation fails
-        });
+        let connections = self.connections.clone();
+        let id = self.id;
+        let mjh = thread::spawn(move || leader_main_loop(id, connections));
 
         self.main_join_handle = Some(mjh);
     }
@@ -93,10 +93,20 @@ impl Replic {
         let main_leader_alive = self.leader_alive.clone();
         let connections = self.connections.clone();
         let id = self.id;
+        let is_leader = self.is_leader.clone();
+        let leader_ok = self.leader_ok.clone();
+        
         let mjh = thread::spawn(move || loop{
             check_leader_alive(connections.clone(), main_leader_alive.clone());
             if election(id, connections.clone()){
-                break;
+                //leader
+                *is_leader.lock().unwrap() = true;
+                leader_main_loop(id, connections.clone());
+            } else {
+                //replic
+                println!("ESPERO AL NUEVO LIDER");
+                wait_for_leader(leader_ok.clone());
+                println!("TENGO NUEVO LIDER");
             }
 
         });
@@ -112,6 +122,7 @@ impl Replic {
         let connections = self.connections.clone();
         let pool = self.threadpool.clone();
         let leader_alive = self.leader_alive.clone();
+        let leader_ok = self.leader_ok.clone();
         
         let t = thread::spawn(move || {
             let listener = TcpListener::bind(format!("{}:{}", h, p)).unwrap();
@@ -120,6 +131,8 @@ impl Replic {
                 let connections_pool = connections.clone();
                 let la = leader_alive.clone();
                 let il = is_leader.clone();
+                let lo = leader_ok.clone();
+
                 pool.execute(move || {
                     let read_stream = stream.unwrap();
                     let mut writer = read_stream.try_clone().unwrap();
@@ -163,6 +176,18 @@ impl Replic {
                                     )
                                     .unwrap();
                                 }
+                                commons::DistMsg::Leader {id} => {
+                                    println!("LIDER RECIBIDO: {}", id);
+                                    for c in &mut*connections_pool.lock().unwrap(){
+                                        if c.1 == id {
+                                            c.4 = true;
+                                        }
+                                    }
+                                    let (lock, cvar) = &*lo;
+                                    let mut started = lock.lock().unwrap();
+                                    *started = true;
+                                    cvar.notify_all();
+                                }
                                 commons::DistMsg::Ping => {
                                     writer.write(&(serde_json::to_string(&commons::DistMsg::Pong) 
                                         .unwrap()
@@ -190,7 +215,8 @@ impl Replic {
 fn leader_msg_discover(id: u32,
         hostname: String,
         port: String, 
-        connections: Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>) {
+        connections: Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>) 
+{
     //conexion a replica entrante
     let mut newreplicstream =
     TcpStream::connect(format!("{}:{}", hostname, port))
@@ -244,14 +270,16 @@ fn leader_msg_discover(id: u32,
 
 fn leader_msg_new_replic(id: u32,
     hostname: String,
-    port: String){
+    port: String)
+{
     //No deberia entrar aca
     println!("{} {} {}", id, hostname, port);
 } 
 
 fn replic_msg_discover(id: u32,
     hostname: String,
-    port: String) {
+    port: String) 
+{
     //No deberia entrar aca
     println!("Discover: ID:{}, {}:{}", id, hostname, port);
 }
@@ -260,7 +288,8 @@ fn replic_msg_new_replic(id: u32,
     hostname: String,
     port: String,
     connections:  Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>,
-    leader_alive: Arc<AtomicBool>){
+    leader_alive: Arc<AtomicBool>)
+{
     leader_alive.store(true, Ordering::Relaxed);
     let newreplicstream =
     TcpStream::connect(format!("{}:{}", hostname, port))
@@ -277,7 +306,10 @@ fn replic_msg_new_replic(id: u32,
     });
 }
 
-fn check_leader_alive(connections: Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>, main_leader_alive: Arc<AtomicBool>) {
+fn check_leader_alive(
+    connections: Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>, 
+    main_leader_alive: Arc<AtomicBool>) 
+{
     loop {
         main_leader_alive.store(false, Ordering::Relaxed);
         thread::sleep(time::Duration::from_secs(5));
@@ -319,7 +351,10 @@ fn check_leader_alive(connections: Arc<Mutex<Vec<(TcpStream, u32, String, String
 }
 
 /// Return True if replic is new leader
-fn election(mid: u32, connections:  Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>) -> bool{
+fn election(
+    mid: u32, 
+    connections:  Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>) 
+-> bool {
     //Elimino al leader de la lista de conexiones
     let index =  connections.lock().unwrap().iter().position(|c| c.4).unwrap();
     connections.lock().unwrap().remove(index);   
@@ -353,8 +388,7 @@ fn election(mid: u32, connections:  Arc<Mutex<Vec<(TcpStream, u32, String, Strin
             Err(_) => {}
         }
     }
-
-    if iamleader {
+    if iamleader{
         println!("SOY LIDER");
     } else {
         println!("SOY REPLICA");
@@ -362,3 +396,27 @@ fn election(mid: u32, connections:  Arc<Mutex<Vec<(TcpStream, u32, String, Strin
     return iamleader;
 }
 
+fn leader_main_loop(id: u32, connections: Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>) {
+    for c in &mut*connections.lock().unwrap() {
+        c.0.write(&(serde_json::to_string(&commons::DistMsg::Leader{id: id}) 
+            .unwrap()
+                + "\n")
+                .as_bytes(),
+        )
+        .unwrap();
+    }
+    loop {
+        //Read input file
+        //broadcast commit when operation is ended correct
+        //broadcast rollback when operation fails
+    }
+}
+
+fn wait_for_leader(pair: Arc<(Mutex<bool>, Condvar)>) {
+    let (lock, cvar) = &*pair;
+    let mut ok = lock.lock().unwrap();
+    *ok = false;
+    while !*ok {
+        ok = cvar.wait(ok).unwrap();
+    }
+}
