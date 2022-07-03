@@ -24,6 +24,7 @@ pub struct Replic {
 
 impl Replic {
     pub fn join(self: &mut Self) {
+        //No anda :/
         drop(&self.threadpool);
 
         match self.join_handle.take() {
@@ -145,12 +146,6 @@ impl Replic {
                                 commons::DistMsg::Pong => {
                                     println!("Pong")
                                 }
-                                commons::DistMsg::Ack => {
-                                    println!("ACK")
-                                }
-                                commons::DistMsg::Nack => {
-                                    println!("NACK")
-                                }
                             },
                             Err(err) => println!("ERROR: {}", err),
                         };
@@ -159,7 +154,8 @@ impl Replic {
             }
         });
         let mjh = thread::spawn(move || loop {
-            todo!(); 
+            let i = 0;
+            //todo!(); 
             //Read input file
             //broadcast commit when operation is ended correct
             //broadcast rollback when operation fails
@@ -224,12 +220,6 @@ impl Replic {
                                 commons::DistMsg::Pong => {
                                     leader_alive2.store(true, Ordering::Relaxed);
                                     println!("Pong")
-                                }
-                                commons::DistMsg::Ack => {
-                                    println!("ACK")
-                                }
-                                commons::DistMsg::Nack => {
-                                    println!("NACK")
                                 }
                             },
                             Err(err) => println!("ERROR: {}", err),
@@ -298,7 +288,7 @@ impl Replic {
                             Err(_) => {}
                         }
                         if !main_leader_alive.load(Ordering::Relaxed) {
-                            todo!();
+                            println!("TENGO QUE HACER ELECTION");
                             //HACER ELECTION
                         }
                     }                  

@@ -1,44 +1,33 @@
 use std::io;
+use std::env;
 
 mod commons;
 mod lib;
 mod replic;
 
 fn main() {
-    /* USAGE: ./alglobo <id> <host> <port> -L <host_leader> <port_leader>
-        Parametro -L si es leader
-    */
-    /*if -l {
-        leeader.rs <id> <host> <port>
+    let args: Vec<_> = env::args().collect();
+
+    let mut replic;
+    if args.len() == 5 {
+        replic = crate::replic::replic::Replic::new(args[1].parse::<u32>().unwrap(), &args[2], &args[3]);
+        replic.start_as_leader();
+
+        read_q();
+
+        replic.join();
+
+    } else if args.len() == 6 {
+        replic = crate::replic::replic::Replic::new(args[1].parse::<u32>().unwrap(), &args[2], &args[3]);
+        replic.start_as_replic(&args[4], &args[5]);
+
+        read_q();
+
+        replic.join();
     } else {
-        replica <id> <host> <port> <host_leader> <port_leader>
-    }*/
+        println!("USAGE: ./alglobo <id> <host> <port> -L <host_leader> <port_leader>");
+    }
 
-    
-    let mut replic1 = crate::replic::replic::Replic::new(1, "127.0.0.1", "9000");
-    replic1.start_as_leader();
-
-
-    let mut replic1 = crate::replic::replic::Replic::new(1, "127.0.0.1", "9001");
-    replic1.start_as_replic("127.0.0.1", "9000");
-
-
-    let mut replic2 = crate::replic::replic::Replic::new(2, "127.0.0.1", "9002");
-    replic2.start_as_replic("127.0.0.1", "9000");
-
-    let mut replic3 = crate::replic::replic::Replic::new(3, "127.0.0.1", "9003");
-    replic3.start_as_replic("127.0.0.1", "9000");
-
-
-    let mut replic4 = crate::replic::replic::Replic::new(4, "127.0.0.1", "9004");
-    replic4.start_as_replic("127.0.0.1", "9000");
-
-    read_q();
-
-    replic1.join();
-    replic2.join();
-    replic3.join();
-    replic4.join();
 }
 
 fn read_q() {

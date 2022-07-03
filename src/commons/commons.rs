@@ -26,8 +26,6 @@ pub enum DistMsg {
     },
     Ping,
     Pong,
-    Ack,
-    Nack,
 }
 
 pub fn deserialize_dist(serialized: String) -> Result<DistMsg, serde_json::Error> {
