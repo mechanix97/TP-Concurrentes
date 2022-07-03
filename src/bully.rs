@@ -7,11 +7,11 @@ use std::convert::TryInto;
 
 fn id_to_ctrladdr(id: usize) -> String { "127.0.0.1:1234".to_owned() + &*id.to_string() }
 
-const TEAM_MEMBERS: usize = 5;
 const TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct LeaderElection {
     id: usize,
+    count: usize,
     socket: UdpSocket,
     leader_id: Arc<(Mutex<Option<usize>>, Condvar)>,
     got_ok: Arc<(Mutex<bool>, Condvar)>,
@@ -19,9 +19,10 @@ pub struct LeaderElection {
 }
 
 impl LeaderElection {
-    pub fn new(id: usize) -> LeaderElection {
+    pub fn new(id: usize, count: usize) -> LeaderElection {
         let mut ret = LeaderElection {
             id,
+            count,
             socket: UdpSocket::bind(id_to_ctrladdr(id)).unwrap(),
             leader_id: Arc::new((Mutex::new(Some(id)), Condvar::new())),
             got_ok: Arc::new((Mutex::new(false), Condvar::new())),
@@ -72,7 +73,7 @@ impl LeaderElection {
     fn send_election(&self) {
         // P envía el mensaje ELECTION a todos los procesos que tengan número mayor
         let msg = self.id_to_msg(b'E');
-        for peer_id in (self.id+1)..TEAM_MEMBERS {
+        for peer_id in (self.id+1)..self.count {
             self.socket.send_to(&msg, id_to_ctrladdr(peer_id)).unwrap();
         }
     }
@@ -81,7 +82,7 @@ impl LeaderElection {
         // El nuevo coordinador se anuncia con un mensaje COORDINATOR
         // println!("[{}] me anuncio como lider", self.id);
         let msg = self.id_to_msg(b'C');
-        for peer_id in 0..TEAM_MEMBERS {
+        for peer_id in 0..self.count {
             if peer_id != self.id {
                 self.socket.send_to(&msg, id_to_ctrladdr(peer_id)).unwrap();
             }
@@ -134,6 +135,7 @@ impl LeaderElection {
     fn clone(&self) -> LeaderElection {
         LeaderElection {
             id: self.id,
+            count: self.count,
             socket: self.socket.try_clone().unwrap(),
             leader_id: self.leader_id.clone(),
             got_ok: self.got_ok.clone(),

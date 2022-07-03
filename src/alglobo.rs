@@ -12,17 +12,21 @@ const TIMEOUT: Duration = Duration::from_secs(4);
 fn id_to_dataaddr(id: usize) -> String { "127.0.0.1:1235".to_owned() + &*id.to_string() }
 
 fn main() {
-    let id = env::args().nth(1).unwrap();
-    let id: usize = id.parse().unwrap();
+    let count = env::args().nth(1).unwrap();
+    let count: usize = count.parse().unwrap();
+    let mut handles = vec!();
 
-    println!("[{}] iniciando", id);
-    team_member(id);
+    for id in 0..count {
+        handles.push(thread::spawn(move || { team_member(id, count) }));
+    }
+    handles.into_iter().for_each(|h| { h.join(); });
 }
 
-fn team_member(id: usize) {
+fn team_member(id: usize, count: usize) {
 
+    println!("[{}] iniciando", id);
     loop {
-        let mut scrum_master = LeaderElection::new(id);
+        let mut scrum_master = LeaderElection::new(id, count);
         let socket = UdpSocket::bind(id_to_dataaddr(id)).unwrap();
         let mut buf = [0; 4];
 
