@@ -92,10 +92,10 @@ impl Replic {
         //replic main loop
         let main_leader_alive = self.leader_alive.clone();
         let connections = self.connections.clone();
-        
+        let id = self.id;
         let mjh = thread::spawn(move || loop{
             check_leader_alive(connections.clone(), main_leader_alive.clone());
-            if election(connections.clone()){
+            if election(id, connections.clone()){
                 break;
             }
 
@@ -105,6 +105,7 @@ impl Replic {
     }
 
     pub fn start(&mut self) {
+        let id = self.id;
         let h = self.hostname.clone();
         let p = self.port.clone();
         let is_leader = self.is_leader.clone();
@@ -115,6 +116,7 @@ impl Replic {
         let t = thread::spawn(move || {
             let listener = TcpListener::bind(format!("{}:{}", h, p)).unwrap();
             for stream in listener.incoming() {
+                let mid = id;
                 let connections_pool = connections.clone();
                 let la = leader_alive.clone();
                 let il = is_leader.clone();
@@ -155,7 +157,11 @@ impl Replic {
                                     }
                                 }
                                 commons::DistMsg::Election {id} => {
-                                    println!("Election id:{}", id);
+                                    writer.write(&(serde_json::to_string(&commons::DistMsg::Election{id: mid}).unwrap()
+                                            + "\n")
+                                            .as_bytes(),
+                                    )
+                                    .unwrap();
                                 }
                                 commons::DistMsg::Ping => {
                                     writer.write(&(serde_json::to_string(&commons::DistMsg::Pong) 
@@ -285,10 +291,9 @@ fn check_leader_alive(connections: Arc<Mutex<Vec<(TcpStream, u32, String, String
                     )
                     .unwrap();
 
-                    c.0.set_read_timeout(Some(time::Duration::from_secs(5)));
+                    c.0.set_read_timeout(Some(time::Duration::from_secs(5))).unwrap();
 
                     let mut reader = io::BufReader::new(c.0.try_clone().unwrap());
-
                     let mut s = String::new();
 
                     let _ = match reader.read_line(&mut s) {
@@ -314,20 +319,46 @@ fn check_leader_alive(connections: Arc<Mutex<Vec<(TcpStream, u32, String, String
 }
 
 /// Return True if replic is new leader
-fn election(connections:  Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>) -> bool{
+fn election(mid: u32, connections:  Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>) -> bool{
     //Elimino al leader de la lista de conexiones
     let index =  connections.lock().unwrap().iter().position(|c| c.4).unwrap();
     connections.lock().unwrap().remove(index);   
     
+    let mut iamleader = true;
+
     for c in &mut*connections.lock().unwrap() {
-        c.0.write(&(serde_json::to_string(&commons::DistMsg::Election{id: 0}) 
+        c.0.write(&(serde_json::to_string(&commons::DistMsg::Election{id: mid}) 
             .unwrap()
                 + "\n")
                 .as_bytes(),
         )
         .unwrap();
+        c.0.set_read_timeout(Some(time::Duration::from_secs(5))).unwrap();
+        let mut reader = io::BufReader::new(c.0.try_clone().unwrap());
+        let mut s = String::new();
+
+        let _ = match reader.read_line(&mut s) {
+            Ok(val) => val,
+            Err(_err) => 0,
+        };
+        match commons::deserialize_dist(s.to_string())  {
+            Ok(val) => match val {
+                commons::DistMsg::Election { id } => {
+                    if id < mid {
+                        iamleader = false;
+                    }
+                }
+                _ => {}
+            },
+            Err(_) => {}
+        }
     }
-    println!("HOLA");
-    return true;
+
+    if iamleader {
+        println!("SOY LIDER");
+    } else {
+        println!("SOY REPLICA");
+    }
+    return iamleader;
 }
 
