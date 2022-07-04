@@ -2,25 +2,25 @@ use std::io::{self, BufRead};
 use std::net::TcpListener;
 use std::net::TcpStream;
 use tp::ThreadPool;
+pub use crate::commons::commons::*;
+pub use crate::lib::lib::*;
 mod commons;
+mod lib;
 mod logger;
 
 fn main() {
-    let listener = TcpListener::bind("127.0.0.1:7881").unwrap();
+    let listener = TcpListener::bind("127.0.0.1:7879").unwrap();
     let pool = ThreadPool::new(4);
-    let logger = logger::Logger::new("hotel.log".to_string());
 
     for stream in listener.incoming() {
-        let l = logger.clone();
         let stream = stream.unwrap();
         pool.execute(|| {
-            handle_connection(stream, l);
+            handle_connection(stream);
         });
     }
 }
 
-fn handle_connection(mut stream: TcpStream, logger: logger::Logger) {
-    logger.log(format!("New connection: from {}\n", stream.peer_addr().unwrap()));
+fn handle_connection(mut stream: TcpStream) {
     let mut reader = io::BufReader::new(&mut stream);
     loop {
         let mut s = String::new();
@@ -30,19 +30,27 @@ fn handle_connection(mut stream: TcpStream, logger: logger::Logger) {
             Err(_err) => 0,
         };
         if s.is_empty() || len == 0 {
-            break;
+            return;
         }
-        match commons::deserialize(s.to_string()) {
-            Ok(val) => match val {
-                commons::Msg::Payment { id, amount } => {
-                    logger.log(format!("Payment from {} with amount {} was successful\n", id, amount))
+        match deserialize(s.to_string()) {
+            Ok(val) => todo!()/*match val {
+                Msg::Payment { id, amount } => {
+                    println!("Payment: {}, {}", id, amount)
                 }
-            },
-            Err(err) => {
-                println!("ERROR: {}", err);
-                break;
-            },
+                Msg::Reversal { id } => {
+                    println!("Reversal: {}", id)
+                }
+                Msg::Ack => {
+                    println!("ACK")
+                }
+                Msg::Nack => {
+                    println!("NACK")
+                }
+                Msg::Quit => {
+                    println!("QUIT")
+                }
+            }*/,
+            Err(err) => println!("ERROR: {}", err),
         };
     }
-    logger.log(format!("Connection closed from: {}\n", stream.peer_addr().unwrap()));
 }

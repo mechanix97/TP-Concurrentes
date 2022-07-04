@@ -16,7 +16,6 @@ pub use airline::AirlineActor;
 pub use airline::FlightPrice;
 
 pub mod commons;
-//mod Payment;
 
 #[actix_rt::main]
 async fn main() {

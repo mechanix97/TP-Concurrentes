@@ -2,7 +2,7 @@ use actix::prelude::*;
 use core::time;
 use std::{net::TcpStream, io::Write, usize, thread::sleep};
 
-use crate::commons;
+use crate::commons::commons::{self};
 
 #[derive(Message)]
 #[rtype(result = "Result<(), std::io::Error>")]
@@ -20,7 +20,7 @@ impl Handler<PaymentPrice> for BankActor {
         
             let msg = commons::Payment{id: msg.0, amount: msg.1};
 
-            sleep(time::Duration::from_millis(1000));
+            // sleep(time::Duration::from_millis(1000));
 
             // bank.write_all(&(serde_json::to_string(&msg).unwrap()+"\n").as_bytes()).unwrap();
 
