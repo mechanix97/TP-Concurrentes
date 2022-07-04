@@ -5,8 +5,6 @@ use rand::distributions::{Distribution, Uniform};
 
 pub use crate::commons::commons::*;
 pub use crate::lib::lib::*;
-mod commons;
-mod lib;
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7879").unwrap();
@@ -34,9 +32,8 @@ fn handle_connection(mut stream: TcpStream) {
             Ok(len) => match mock_response(len, value) {
                     Ok(val) if val > 0 => val,
                     Ok(val) => 0,
-                    Err(_err) => 0,
                 },
-            Err(_err) => 0,        
+            Err(_err) => 0,
         };
         
         if s.is_empty() || len == 0 {
