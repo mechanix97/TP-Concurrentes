@@ -1,3 +1,4 @@
+use std::fs::File;
 use std::io::prelude::*;
 use std::io::{self, BufRead};
 use std::net::TcpListener;
@@ -398,10 +399,26 @@ fn leader_main_loop(id: u32, connections: Arc<Mutex<Vec<(TcpStream, u32, String,
         )
         .unwrap();
     }
-    loop {
+    let mut fi = File::open("input.txt").unwrap();
+    loop {       
         //Read input file
-        //broadcast commit when operation is ended correct
-        //broadcast rollback when operation fails
+        let mut line1= String::new();
+        let mut line2= String::new();
+        let mut line3= String::new();
+        let len1 = fi.read_to_string(&mut line1).unwrap();
+        let len2 = fi.read_to_string(&mut line2).unwrap();
+        let len3 = fi.read_to_string(&mut line3).unwrap();
+        if len1 == 0 || len2 == 0 || len3 == 0 {
+            break;
+        }
+        let msg1 = commons::deserialize(line1).unwrap();
+        let msg2 = commons::deserialize(line2).unwrap();
+        let msg3 = commons::deserialize(line3).unwrap();
+        let t = thread::spawn(move || {
+            //broadcast commit when operation is ended correct
+            //broadcast rollback when operation fails
+        });
+        //faltaria agregar el join handle a algún arreglo de handles
     }
 }
 
