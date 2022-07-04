@@ -1,52 +1,43 @@
-use std::io::{self, BufRead};
-use std::net::TcpListener;
-use std::net::TcpStream;
-use tp::ThreadPool;
-mod commons;
+use actix::prelude::*;
+use core::time;
+use std::{net::TcpStream, io::Write, usize, thread::sleep};
 
-fn main() {
-    let listener = TcpListener::bind("127.0.0.1:7879").unwrap();
-    let pool = ThreadPool::new(4);
+use crate::commons;
 
-    for stream in listener.incoming() {
-        let stream = stream.unwrap();
-        pool.execute(|| {
-            handle_connection(stream);
-        });
+#[derive(Message)]
+#[rtype(result = "Result<(), std::io::Error>")]
+pub struct PaymentPrice(pub i32, pub f32);
+
+impl Handler<PaymentPrice> for BankActor {
+    // type Result = ResponseActFuture<Self, Result<bool, std::io::Error>>;
+    type Result = ResponseFuture<Result<(), std::io::Error>>;
+
+    fn handle(&mut self, msg: PaymentPrice, ctx: &mut Context<Self>) -> Self::Result {
+        Box::pin(async move {
+            println!("Received this money: {} from transaction with id {} to pay to the Bank", msg.1, msg.0);
+
+            // let mut bank = TcpStream::connect("127.0.0.1:7879").unwrap();
+        
+            let msg = commons::Payment{id: msg.0, amount: msg.1};
+
+            sleep(time::Duration::from_millis(1000));
+
+            // bank.write_all(&(serde_json::to_string(&msg).unwrap()+"\n").as_bytes()).unwrap();
+
+            Ok(())
+        })
     }
 }
+pub struct BankActor;
 
-fn handle_connection(mut stream: TcpStream) {
-    let mut reader = io::BufReader::new(&mut stream);
-    loop {
-        let mut s = String::new();
+impl Actor for BankActor {
+    type Context = Context<Self>;
 
-        let len = match reader.read_line(&mut s) {
-            Ok(val) => val,
-            Err(_err) => 0,
-        };
-        if s.is_empty() || len == 0 {
-            return;
-        }
-        match commons::deserialize(s.to_string()) {
-            Ok(val) => match val {
-                commons::Msg::Payment { id, amount } => {
-                    println!("Payment: {}, {}", id, amount)
-                }
-                commons::Msg::Reversal { id } => {
-                    println!("Reversal: {}", id)
-                }
-                commons::Msg::Ack => {
-                    println!("ACK")
-                }
-                commons::Msg::Nack => {
-                    println!("NACK")
-                }
-                commons::Msg::Quit => {
-                    println!("QUIT")
-                }
-            },
-            Err(err) => println!("ERROR: {}", err),
-        };
+    fn started(&mut self, ctx: &mut Self::Context) {
+        println!("Actor Bank is alive!");
+    }
+
+    fn stopped(&mut self, ctx: &mut Self::Context) {
+        println!("Actor Bank is stopped");
     }
 }

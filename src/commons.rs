@@ -1,14 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum Msg {
-    Payment { id: i32, amount: i32 },
-    Reversal { id: i32 },
-    Ack,
-    Nack,
-    Quit,
-}
+pub struct Payment{pub id: i32, pub amount: f32}
 
-pub fn deserialize(serialized: String) -> Result<Msg, serde_json::Error> {
+pub fn deserialize(serialized: String) -> Result<Payment, serde_json::Error> {
     serde_json::from_str(&serialized)
 }

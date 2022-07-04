@@ -1,61 +1,43 @@
-use std::io::{self, BufRead};
-use std::net::TcpListener;
-use std::net::TcpStream;
-use tp::ThreadPool;
-mod commons;
-mod logger;
+use actix::prelude::*;
+use core::time;
+use std::{net::TcpStream, io::Write, thread::sleep};
 
-fn main() {
-    let listener = TcpListener::bind("127.0.0.1:7879").unwrap();
-    let pool = ThreadPool::new(4);
-    let logger = logger::Logger::new("hotel.log".to_string());
+use crate::commons;
 
-    
-    for stream in listener.incoming() {
-        let l = logger.clone();
-        let stream = stream.unwrap();
-        pool.execute(|| {
-            handle_connection(stream, l);
-        });
+#[derive(Message)]
+#[rtype(result = "Result<(), std::io::Error>")]
+pub struct ReservationPrice(pub i32, pub f32);
+
+impl Handler<ReservationPrice> for HotelActor {
+    // type Result = ResponseActFuture<Self, Result<bool, std::io::Error>>;
+    type Result = ResponseFuture<Result<(), std::io::Error>>;
+
+    fn handle(&mut self, msg: ReservationPrice, ctx: &mut Context<Self>) -> Self::Result {
+        Box::pin(async move {
+            println!("Received this money: {} from transaction with id {} to pay to the Hotel", msg.1, msg.0);
+
+            // let mut hotel = TcpStream::connect("127.0.0.1:7881").unwrap();
+
+            // sleep(time::Duration::from_millis(1000));
+        
+            let msg = commons::Payment{id: msg.0, amount: msg.1};
+
+            // hotel.write_all(&(serde_json::to_string(&msg).unwrap()+"\n").as_bytes()).unwrap();
+
+            Ok(())
+        })
     }
 }
+pub struct HotelActor;
 
-fn handle_connection(mut stream: TcpStream, logger: logger::Logger) {
-    logger.log(format!("New connection: from {}\n", stream.peer_addr().unwrap()));
-    let mut reader = io::BufReader::new(&mut stream);
-    loop {
-        let mut s = String::new();
+impl Actor for HotelActor {
+    type Context = Context<Self>;
 
-        let len = match reader.read_line(&mut s) {
-            Ok(val) => val,
-            Err(_err) => 0,
-        };
-        if s.is_empty() || len == 0 {
-            break;
-        }
-        match commons::deserialize(s.to_string()) {
-            Ok(val) => match val {
-                commons::Msg::Payment { id, amount } => {
-                    logger.log(format!("Payment from {} with amount {}\n", id, amount))
-                }
-                commons::Msg::Reversal { id } => {
-                    logger.log(format!("Reversal transaction {}\n", id))
-                }
-                commons::Msg::Ack => {
-                    logger.log(format!("ACK\n"))
-                }
-                commons::Msg::Nack => {
-                    logger.log(format!("NACK\n"))
-                }
-                commons::Msg::Quit => {
-                    logger.log(format!("QUIT\n"));
-                }
-            },
-            Err(err) => {
-                println!("ERROR: {}", err);
-                break;
-            },
-        };
+    fn started(&mut self, ctx: &mut Self::Context) {
+        println!("Actor Hotel is alive!");
     }
-    logger.log(format!("Connection closed from: {}\n", stream.peer_addr().unwrap()));
+
+    fn stopped(&mut self, ctx: &mut Self::Context) {
+        println!("Actor Hotel is stopped");
+    }
 }
