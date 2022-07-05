@@ -28,7 +28,7 @@ impl Handler<FlightPrice> for AirlineActor {
         });
         let actor_future = future.into_actor(self);
 
-        ctx.spawn(actor_future);
+        ctx.wait(actor_future);
     }
 }
 pub struct AirlineActor;
@@ -38,7 +38,6 @@ impl Actor for AirlineActor {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         println!("Actor Airline is alive!");
-        ctx.notify(FlightPrice(1, 300.0));
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {

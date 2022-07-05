@@ -15,11 +15,12 @@ impl Handler<ReservationPrice> for HotelActor {
 
     fn handle(&mut self, msg: ReservationPrice, ctx: &mut Context<Self>) -> Self::Result {
         let future = Box::pin(async move {
-            println!("Received this money: {} from transaction with id {} to pay to the Hotel", msg.1, msg.0);
 
             // let mut hotel = TcpStream::connect("127.0.0.1:7881").unwrap();
 
-            // sleep(time::Duration::from_millis(1000));
+            sleep(time::Duration::from_millis(3000));
+
+            println!("Received this money: {} from transaction with id {} to pay to the Hotel", msg.1, msg.0);
         
             let msg = commons::Payment{id: msg.0, amount: msg.1};
 
@@ -28,7 +29,7 @@ impl Handler<ReservationPrice> for HotelActor {
         });
         let actor_future = future.into_actor(self);
 
-        ctx.spawn(actor_future);
+        ctx.wait(actor_future);
 
     }
 }
@@ -39,7 +40,6 @@ impl Actor for HotelActor {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         println!("Actor Hotel is alive!");
-        ctx.notify(ReservationPrice(1, 500.0));
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {

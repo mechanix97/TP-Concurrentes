@@ -29,7 +29,7 @@ impl Handler<PaymentPrice> for BankActor {
         });
         let actor_future = future.into_actor(self);
 
-        ctx.spawn(actor_future);
+        ctx.wait(actor_future);
     }
 }
 pub struct BankActor;
@@ -39,7 +39,6 @@ impl Actor for BankActor {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         println!("Actor Bank is alive!");
-        ctx.notify(PaymentPrice(1, 200.0));
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
