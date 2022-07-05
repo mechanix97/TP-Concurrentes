@@ -53,8 +53,8 @@ mod tests {
 
     fn generate_input_file() {
         let mut file = File::create("input.txt").unwrap();
-        for _ in 0..100000{
-            file.write_all(&(serde_json::to_string(&Payment {id: 1, amount: 100.0}) 
+        for i in 0..100000{
+            file.write_all(&(serde_json::to_string(&Payment {id: i/3, amount: 100.0}) 
             .unwrap()
                 + "\n").as_bytes() ).unwrap();
         }

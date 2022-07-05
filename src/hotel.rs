@@ -1,36 +1,32 @@
 use actix::prelude::*;
+use chrono::Local;
 use core::time;
 use std::{net::TcpStream, io::Write, thread::sleep, pin::Pin, future::Future};
-
-use crate::commons::commons::{self};
+use async_std::task;
 
 pub struct ReservationPrice(pub i32, pub f32);
 
 impl Message for ReservationPrice {
-    type Result = ();
+    type Result = Result<bool, ()>;
 }
 
 impl Handler<ReservationPrice> for HotelActor {
-    type Result = ();
+    type Result = ResponseActFuture<Self, Result<bool, ()>>;
 
     fn handle(&mut self, msg: ReservationPrice, ctx: &mut Context<Self>) -> Self::Result {
-        let future = Box::pin(async move {
-
-            // let mut hotel = TcpStream::connect("127.0.0.1:7881").unwrap();
-
-            sleep(time::Duration::from_millis(3000));
-
-            println!("Received this money: {} from transaction with id {} to pay to the Hotel", msg.1, msg.0);
-        
-            let msg = commons::Payment{id: msg.0, amount: msg.1};
-
-            // hotel.write_all(&(serde_json::to_string(&msg).unwrap()+"\n").as_bytes()).unwrap();
-
-        });
-        let actor_future = future.into_actor(self);
-
-        ctx.wait(actor_future);
-
+        Box::pin(
+            async {
+                // Some async computation
+                task::sleep(time::Duration::from_secs(3)).await;
+                true
+            }
+            .into_actor(self) // converts future to ActorFuture
+            .map(|res, _act, _ctx| {
+                // Do some computation with actor's state or context
+                println!("{}: Mensaje Hotel", Local::now().format("%Y-%m-%d %H:%M:%S"));
+                Ok(res)
+            }),
+        )
     }
 }
 pub struct HotelActor;
