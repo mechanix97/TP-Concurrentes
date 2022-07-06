@@ -4,20 +4,25 @@ use core::time;
 use std::{net::TcpStream, io::Write, usize, thread::sleep};
 use async_std::task;
 
-pub struct FlightPrice(pub i32, pub f32);
+use crate::payment::Payment;
 
-impl Message for FlightPrice {
-    type Result = Result<bool, ()>;
-}
+
+#[derive(Message)]
+#[rtype(result = "Result<bool, ()>")]
+pub struct FlightPrice(pub i32, pub f32);
 
 impl Handler<FlightPrice> for AirlineActor {
     type Result = ResponseActFuture<Self, Result<bool, ()>>;
 
     fn handle(&mut self, msg: FlightPrice, ctx: &mut Context<Self>) -> Self::Result {
         Box::pin(
-            async move{
-                // Some async computation
-                task::sleep(time::Duration::from_secs(3)).await;
+            async {
+            
+                let msg = Payment{id: msg.0, amount: msg.1};
+
+                self.airline_connection.write_all(&(serde_json::to_string(&msg).unwrap()+"\n").as_bytes()).unwrap();
+
+                // task::sleep(time::Duration::from_secs(3)).await;
                 true
             }
             .into_actor(self) // converts future to ActorFuture
@@ -29,7 +34,7 @@ impl Handler<FlightPrice> for AirlineActor {
         )
     }
 }
-pub struct AirlineActor;
+pub struct AirlineActor { airline_connection: TcpStream }
 
 impl Actor for AirlineActor {
     type Context = Context<Self>;

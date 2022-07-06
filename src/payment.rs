@@ -2,14 +2,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Payment{
-    kind: PaymentKind,
+    id: i32,
     amount: f32,   
-}
-
-enum PaymentKind{
-    bank,
-    hotel,
-    airline,
 }
 
 impl Payment {

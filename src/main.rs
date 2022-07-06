@@ -1,17 +1,14 @@
-use std::future::Future;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::fs;
-use std::rc::Rc;
-use std::sync::Arc;
-use actix::{Actor, ResponseActFuture};
+use std::net::TcpStream;
+use actix::{Actor};
 use actix::prelude::*;
 use futures::join;
 mod hotel;
 mod bank;
 mod airline;
 
-use actix::spawn;
 use chrono::Local;
 pub use hotel::HotelActor;
 pub use hotel::ReservationPrice;
@@ -23,20 +20,22 @@ pub use airline::AirlineActor;
 pub use airline::FlightPrice;
 
 pub mod commons;
+pub mod payment;
 
 
 fn main() {
     let sys = actix::System::new();
 
     println!("{}:INICIO", Local::now().format("%Y-%m-%d %H:%M:%S"));
+    let filename = r"transactions.txt";
+    let file = fs::File::open(filename).expect("Error: file not found!");
+    let  buf_reader = BufReader::new(file);
+
     sys.block_on(async {
-        let filename = r"transactions.txt";
-        let file = fs::File::open(filename).expect("Error: file not found!");
-        let  buf_reader = BufReader::new(file);
         
-        let addr_bank = BankActor.start();
-        let addr_hotel = HotelActor.start();
-        let addr_airline = AirlineActor.start();
+        let addr_bank = BankActor { bank_connection: TcpStream::connect("127.0.0.1:7879").unwrap() }.start();
+        let addr_hotel = HotelActor { hotel_connection: TcpStream::connect("127.0.0.1:7879").unwrap() }.start();
+        let addr_airline = AirlineActor { airline_connection: TcpStream::connect("127.0.0.1:7879").unwrap() }.start();
 
         for line in buf_reader.lines() {
             let line_str: String = line.unwrap();
@@ -70,8 +69,7 @@ fn main() {
             };
             println!("{}:Termine transaccion", Local::now().format("%Y-%m-%d %H:%M:%S"));
 
-
-        }        
+        }
     });
     System::current().stop();
     sys.run().unwrap();

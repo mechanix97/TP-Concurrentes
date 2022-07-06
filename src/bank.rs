@@ -3,20 +3,24 @@ use chrono::Local;
 use core::time;
 use std::{net::TcpStream, io::Write, usize, thread::sleep, pin::Pin, future::Future};
 use async_std::task;
-pub struct PaymentPrice(pub i32, pub f32);
 
-impl Message for PaymentPrice {
-    type Result = Result<bool, ()>;
-}
+use crate::payment::Payment;
+
+#[derive(Message)]
+#[rtype(result = "Result<bool, ()>")]
+pub struct PaymentPrice(pub i32, pub f32);
 
 impl Handler<PaymentPrice> for BankActor {
     type Result = ResponseActFuture<Self, Result<bool, ()>>;
 
     fn handle(&mut self, msg: PaymentPrice, ctx: &mut Context<Self>) -> Self::Result {
         Box::pin(
-            async {
-                // Some async computation
-                task::sleep(time::Duration::from_secs(3)).await;
+            async {       
+                let msg = Payment{id: msg.0, amount: msg.1};
+
+                self.bank_connection.write_all(&(serde_json::to_string(&msg).unwrap()+"\n").as_bytes()).unwrap();
+                
+                // task::sleep(time::Duration::from_secs(3)).await;
                 true
             }
             .into_actor(self) // converts future to ActorFuture
@@ -28,7 +32,7 @@ impl Handler<PaymentPrice> for BankActor {
         )
     }
 }
-pub struct BankActor;
+pub struct BankActor { bank_connection: TcpStream }
 
 impl Actor for BankActor {
     type Context = Context<Self>;

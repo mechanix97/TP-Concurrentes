@@ -1,14 +1,13 @@
 use actix::prelude::*;
 use chrono::Local;
 use core::time;
-use std::{net::TcpStream, io::Write, thread::sleep, pin::Pin, future::Future};
-use async_std::task;
+use std::{net::TcpStream, io::Write, thread::sleep};
 
+use crate::payment::Payment;
+
+#[derive(Message)]
+#[rtype(result = "Result<bool, ()>")]
 pub struct ReservationPrice(pub i32, pub f32);
-
-impl Message for ReservationPrice {
-    type Result = Result<bool, ()>;
-}
 
 impl Handler<ReservationPrice> for HotelActor {
     type Result = ResponseActFuture<Self, Result<bool, ()>>;
@@ -16,8 +15,12 @@ impl Handler<ReservationPrice> for HotelActor {
     fn handle(&mut self, msg: ReservationPrice, ctx: &mut Context<Self>) -> Self::Result {
         Box::pin(
             async {
-                // Some async computation
-                task::sleep(time::Duration::from_secs(3)).await;
+
+                let msg = Payment{id: msg.0, amount: msg.1};
+
+                self.hotel_connection.write_all(&(serde_json::to_string(&msg).unwrap()+"\n").as_bytes()).unwrap();
+
+                // task::sleep(time::Duration::from_secs(6)).await;
                 true
             }
             .into_actor(self) // converts future to ActorFuture
@@ -29,7 +32,7 @@ impl Handler<ReservationPrice> for HotelActor {
         )
     }
 }
-pub struct HotelActor;
+pub struct HotelActor { hotel_connection: TcpStream }
 
 impl Actor for HotelActor {
     type Context = Context<Self>;
