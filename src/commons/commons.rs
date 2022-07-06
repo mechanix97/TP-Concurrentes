@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-pub fn mock_response(len: usize, value: usize) -> usize {
+pub fn mock_response(len: usize, value: usize) -> Result<(), std::io::Error> {
     let mut length = len;
     if value < 4 {
-        length = 0;
+        Err(())
     }
-    length
+    Ok(())
 }
 
 #[derive(Serialize, Deserialize, Debug)]

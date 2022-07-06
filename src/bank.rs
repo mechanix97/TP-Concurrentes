@@ -13,12 +13,14 @@ pub struct PaymentPrice(pub i32, pub f32);
 impl Handler<PaymentPrice> for BankActor {
     type Result = ResponseActFuture<Self, Result<bool, ()>>;
 
-    fn handle(&mut self, msg: PaymentPrice, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: PaymentPrice, _ctx: &mut Context<Self>) -> Self::Result {
+        let message = Payment{id: msg.0, amount: msg.1};
+        
+        let mut connection = self.bank_connection.try_clone().unwrap();
+        
         Box::pin(
-            async {       
-                let msg = Payment{id: msg.0, amount: msg.1};
-
-                self.bank_connection.write_all(&(serde_json::to_string(&msg).unwrap()+"\n").as_bytes()).unwrap();
+            async move {       
+                connection.write_all(&(serde_json::to_string(&message).unwrap()+"\n").as_bytes()).unwrap();
                 
                 // task::sleep(time::Duration::from_secs(3)).await;
                 true

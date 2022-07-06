@@ -14,13 +14,14 @@ pub struct FlightPrice(pub i32, pub f32);
 impl Handler<FlightPrice> for AirlineActor {
     type Result = ResponseActFuture<Self, Result<bool, ()>>;
 
-    fn handle(&mut self, msg: FlightPrice, ctx: &mut Context<Self>) -> Self::Result {
-        Box::pin(
-            async {
-            
-                let msg = Payment{id: msg.0, amount: msg.1};
+    fn handle(&mut self, msg: FlightPrice, _ctx: &mut Context<Self>) -> Self::Result {
+        let msg = Payment{id: msg.0, amount: msg.1};
 
-                self.airline_connection.write_all(&(serde_json::to_string(&msg).unwrap()+"\n").as_bytes()).unwrap();
+        let mut connection = self.airline_connection.try_clone().unwrap();
+        
+        Box::pin(
+            async move {
+                connection.write_all(&(serde_json::to_string(&msg).unwrap()+"\n").as_bytes()).unwrap();
 
                 // task::sleep(time::Duration::from_secs(3)).await;
                 true

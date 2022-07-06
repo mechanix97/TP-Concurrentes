@@ -20,6 +20,7 @@ pub use airline::AirlineActor;
 pub use airline::FlightPrice;
 
 pub mod commons;
+pub mod lib;
 pub mod payment;
 
 

@@ -10,15 +10,15 @@ path = "src/alglobo.rs"
 
 [[bin]]
 name = "bank"
-path = "src/bank.rs"
+path = "src/externalBank.rs"
 
 [[bin]]
 name = "airline"
-path = "src/airline.rs"
+path = "src/externalAirline.rs"
 
 [[bin]]
 name = "hotel"
-path = "src/hotel.rs"
+path = "src/externalHotel.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -30,3 +30,4 @@ actix = "0.13.0"
 actix-rt = "2.2"
 futures = "0.3"
 async-std = "1.0" 
+rand = "0.8.5"

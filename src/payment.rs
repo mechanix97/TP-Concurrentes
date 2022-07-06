@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Payment{
-    id: i32,
-    amount: f32,   
+    pub id: i32,
+    pub amount: f32,   
 }
 
 impl Payment {

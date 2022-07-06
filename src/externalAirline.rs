@@ -1,10 +1,14 @@
 use std::io::{self, BufRead};
 use std::net::TcpListener;
 use std::net::TcpStream;
-use rand::distributions::{Distribution, Uniform};
+use rand::distributions::{Uniform};
+use rand::prelude::Distribution;
 
-pub use crate::commons::commons::*;
-pub use crate::lib::lib::*;
+pub use crate::commons::commons::{*};
+pub use crate::lib::lib::{*};
+
+mod commons;
+mod lib;
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7879").unwrap();
@@ -21,7 +25,7 @@ fn main() {
 fn handle_connection(mut stream: TcpStream) {
     let mut reader = io::BufReader::new(&mut stream);
     let mut rng = rand::thread_rng();
-    let distr = Uniform::from(1..10);
+    let distr: Uniform<i32> = Uniform::from(1..10);
 
     loop {
         let mut s = String::new();
@@ -32,6 +36,7 @@ fn handle_connection(mut stream: TcpStream) {
             Ok(len) => match mock_response(len, value) {
                     Ok(val) if val > 0 => val,
                     Ok(val) => 0,
+                    Err(_) => 0,
                 },
             Err(_err) => 0,
         };
@@ -40,8 +45,8 @@ fn handle_connection(mut stream: TcpStream) {
             return;
         }
         match deserialize(s.to_string()) {
-            Ok(val) => println!("Payment to the Airline was successful for the transaction id {} and the amount {}", id, amount),
-            Err(err) => println!("Error in payment to the Airline for transaction id {}: {}", err),
+            Ok(val) => println!("Payment to the Airline was successful for the transaction id and amount {}", s.to_string()),
+            Err(err) => println!("Error in payment to the Airline for transaction id and amount {}", s.to_string()),
         };
     }
 }
