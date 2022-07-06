@@ -4,7 +4,7 @@ use std::net::TcpListener;
 use std::net::TcpStream;
 use std::sync::{Arc, Mutex, Condvar};
 use std::{thread, time};
-use std::thread::JoinHandle;
+use std::thread::{JoinHandle, sleep};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::fs;
 use actix::{prelude::*};
@@ -193,6 +193,12 @@ impl Replic {
                                     let mut started = lock.lock().unwrap();
                                     *started = true;
                                     cvar.notify_all();
+                                }
+                                DistMsg::Commit {transaction} => {
+                                    println!("recibo commit: {}", transaction);
+                                }
+                                DistMsg::Rollback {transaction} => {
+                                    println!("recibo rollback: {}", transaction);
                                 }
                                 DistMsg::Ping => {
                                     writer.write(&(serde_json::to_string(&DistMsg::Pong) 
@@ -408,6 +414,7 @@ fn leader_main_loop(id: u32, connections: Arc<Mutex<Vec<(TcpStream, u32, String,
         .unwrap();
     }
     println!("SOY LIDER");
+    sleep(time::Duration::from_secs(10));
     let sys = actix::System::new();
 
     println!("{}:INICIO", Local::now().format("%Y-%m-%d %H:%M:%S"));
@@ -422,8 +429,9 @@ fn leader_main_loop(id: u32, connections: Arc<Mutex<Vec<(TcpStream, u32, String,
         let addr_airline = AirlineActor { airline_connection: TcpStream::connect("127.0.0.1:7880").unwrap() }.start();
 
         for line in buf_reader.lines() {
-            let line_str: String = line.unwrap();
-            let separated_line: Vec<&str> = line_str.split(',').collect();
+            let transaction = line.unwrap();            
+            
+            let separated_line: Vec<&str> = transaction.split(',').collect();
     
             let transaction_id = separated_line[0].trim().to_string().parse::<i32>().unwrap();
             let bank_payment = separated_line[1].trim().to_string().parse::<f32>().unwrap();
@@ -438,25 +446,54 @@ fn leader_main_loop(id: u32, connections: Arc<Mutex<Vec<(TcpStream, u32, String,
 
             
             let res = join!(result_hotel, result_bank, result_airline ); //Resultado
-            println!("--------------");
-            match res.0 {
-                Ok(val) => println!("HOTEL TERMINO {}", val.unwrap()),
-                Err(_) => println!("HOTEL ERROR")
+            let result0 =match res.0 {
+                Ok(val) => {match val{
+                    Ok(val) => val,
+                    Err(_) => false
+                }}
+                Err(_) => false
             };
-            match res.1 {
-                Ok(val) => println!("BANCO TERMINO {}", val.unwrap()),
-                Err(_) => println!("BANCO ERROR")
-             };
-            match res.2 {
-                Ok(val) => println!("AEROLINEA TERMINO {}", val.unwrap()),
-                Err(_) => println!("AEROLINEA ERROR")
+            let result1 =match res.1 {
+                Ok(val) => {match val{
+                    Ok(val) => val,
+                    Err(_) => false
+                }}
+                Err(_) => false
             };
-            println!("--------------");
+            let result2 =match res.2 {
+                Ok(val) => {match val{
+                    Ok(val) => val,
+                    Err(_) => false
+                }}
+                Err(_) => false
+            };
+
+            if result0 && result1 && result2 {
+                for c in &mut*connections.lock().unwrap() {
+                    c.0.write(&(serde_json::to_string(&DistMsg::Commit{transaction: transaction.clone()}) 
+                        .unwrap()
+                            + "\n")
+                            .as_bytes(),
+                    )
+                    .unwrap();
+                }
+            } else {
+                for c in &mut*connections.lock().unwrap() {
+                    c.0.write(&(serde_json::to_string(&DistMsg::Rollback{transaction: transaction.clone()}) 
+                        .unwrap()
+                            + "\n")
+                            .as_bytes(),
+                    )
+                    .unwrap();
+                }
+            }
         }
     });
+    
     System::current().stop();
     sys.run().unwrap();
-    println!("{}:FIN", Local::now().format("%Y-%m-%d %H:%M:%S"));
+    
+    println!("{}: TERMINO TRANSACCIONES", Local::now().format("%Y-%m-%d %H:%M:%S"));
 
 }
 

@@ -37,6 +37,12 @@ pub enum DistMsg {
     Leader{
         id: u32
     },
+    Commit{
+        transaction: String
+    },
+    Rollback{
+        transaction: String
+    },
     Ping,
     Pong,
 }
