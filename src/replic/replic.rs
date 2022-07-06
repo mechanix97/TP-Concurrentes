@@ -1,4 +1,3 @@
-use std::fs::File;
 use std::io::prelude::*;
 use std::io::{self, BufRead};
 use std::net::TcpListener;
@@ -7,9 +6,19 @@ use std::sync::{Arc, Mutex, Condvar};
 use std::{thread, time};
 use std::thread::JoinHandle;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::fs;
+use actix::{prelude::*};
+use futures::join;
+use chrono::Local;
 
-pub use crate::commons::*;
+pub use crate::commons::commons::{deserialize_dist, DistMsg};
 pub use crate::lib::*;
+
+pub use crate::hotel::{HotelActor, ReservationPrice};
+pub use crate::bank::{BankActor, PaymentPrice};
+pub use crate::airline::{FlightPrice, AirlineActor};
+
+
 
 pub struct Replic {
     id: u32,
@@ -26,7 +35,6 @@ pub struct Replic {
 
 impl Replic {
     pub fn join(self: &mut Self) {
-        //No anda :/
         drop(&self.threadpool);
 
         match self.join_handle.take() {
@@ -72,7 +80,7 @@ impl Replic {
             TcpStream::connect(format!("{}:{}", replic_hostname.clone(), replic_port.clone())).unwrap();
         stream
             .write(
-                &(serde_json::to_string(&commons::DistMsg::Discover {
+                &(serde_json::to_string(&DistMsg::Discover {
                     id: self.id,
                     hostname: self.hostname.to_string(),
                     port: self.port.to_string(),
@@ -152,30 +160,30 @@ impl Replic {
                             is_leader = *il.lock().unwrap();
                         }
 
-                        match commons::deserialize_dist(s.to_string()) {
+                        match deserialize_dist(s.to_string()) {
                             Ok(val) => match val {
-                                commons::DistMsg::Discover { id, hostname, port } => {
+                                DistMsg::Discover { id, hostname, port } => {
                                     if is_leader {
                                         leader_msg_discover(id, hostname, port, connections_pool.clone());
                                     } else {
                                         replic_msg_discover(id, hostname, port);
                                     }                                   
                                 }
-                                commons::DistMsg::NewReplic { id, hostname, port } => {
+                                DistMsg::NewReplic { id, hostname, port } => {
                                     if is_leader {
                                         leader_msg_new_replic(id, hostname, port);
                                     } else {
                                         replic_msg_new_replic(id, hostname, port, connections_pool.clone(), la.clone());
                                     }
                                 }
-                                commons::DistMsg::Election {id: _} => {
-                                    writer.write(&(serde_json::to_string(&commons::DistMsg::Election{id: mid}).unwrap()
+                                DistMsg::Election {id: _} => {
+                                    writer.write(&(serde_json::to_string(&DistMsg::Election{id: mid}).unwrap()
                                             + "\n")
                                             .as_bytes(),
                                     )
                                     .unwrap();
                                 }
-                                commons::DistMsg::Leader {id} => {
+                                DistMsg::Leader {id} => {
                                     for c in &mut*connections_pool.lock().unwrap(){
                                         if c.1 == id {
                                             c.4 = true;
@@ -186,15 +194,15 @@ impl Replic {
                                     *started = true;
                                     cvar.notify_all();
                                 }
-                                commons::DistMsg::Ping => {
-                                    writer.write(&(serde_json::to_string(&commons::DistMsg::Pong) 
+                                DistMsg::Ping => {
+                                    writer.write(&(serde_json::to_string(&DistMsg::Pong) 
                                         .unwrap()
                                             + "\n")
                                             .as_bytes(),
                                     )
                                     .unwrap();
                                 }
-                                commons::DistMsg::Pong => {
+                                DistMsg::Pong => {
                                     println!("Pong")
                                 }
                             },
@@ -225,7 +233,7 @@ fn leader_msg_discover(id: u32,
     conn.0
         .write(
             &(serde_json::to_string(
-                &commons::DistMsg::NewReplic {
+                &DistMsg::NewReplic {
                     id: id,
                     hostname: hostname.clone(),
                     port: port.clone(),
@@ -241,7 +249,7 @@ fn leader_msg_discover(id: u32,
     newreplicstream
         .write(
             &(serde_json::to_string(
-                &commons::DistMsg::NewReplic {
+                &DistMsg::NewReplic {
                     id: conn.1,
                     hostname: conn.2.clone(),
                     port: conn.3.clone(),
@@ -314,7 +322,7 @@ fn check_leader_alive(
         if !main_leader_alive.load(Ordering::Relaxed) {
             for c in &mut*connections.lock().unwrap() {
                 if c.4 {
-                        c.0.write(&(serde_json::to_string(&commons::DistMsg::Ping) 
+                        c.0.write(&(serde_json::to_string(&DistMsg::Ping) 
                         .unwrap()
                             + "\n")
                             .as_bytes(),
@@ -330,9 +338,9 @@ fn check_leader_alive(
                         Ok(val) => val,
                         Err(_err) => 0,
                     };
-                    match commons::deserialize_dist(s.to_string())  {
+                    match deserialize_dist(s.to_string())  {
                         Ok(val) => match val {
-                            commons::DistMsg::Pong => {
+                            DistMsg::Pong => {
                                 main_leader_alive.store(true, Ordering::Relaxed);
                             }
                             _ => {}
@@ -361,7 +369,7 @@ fn election(
     let mut amileader = true;
 
     for c in &mut*connections.lock().unwrap() {
-        c.0.write(&(serde_json::to_string(&commons::DistMsg::Election{id: mid}) 
+        c.0.write(&(serde_json::to_string(&DistMsg::Election{id: mid}) 
             .unwrap()
                 + "\n")
                 .as_bytes(),
@@ -375,9 +383,9 @@ fn election(
             Ok(val) => val,
             Err(_err) => 0,
         };
-        match commons::deserialize_dist(s.to_string())  {
+        match deserialize_dist(s.to_string())  {
             Ok(val) => match val {
-                commons::DistMsg::Election { id } => {
+                DistMsg::Election { id } => {
                     if id < mid {
                         amileader = false;
                     }
@@ -392,7 +400,7 @@ fn election(
 
 fn leader_main_loop(id: u32, connections: Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>) {
     for c in &mut*connections.lock().unwrap() {
-        c.0.write(&(serde_json::to_string(&commons::DistMsg::Leader{id: id}) 
+        c.0.write(&(serde_json::to_string(&DistMsg::Leader{id: id}) 
             .unwrap()
                 + "\n")
                 .as_bytes(),
@@ -400,27 +408,56 @@ fn leader_main_loop(id: u32, connections: Arc<Mutex<Vec<(TcpStream, u32, String,
         .unwrap();
     }
     println!("SOY LIDER");
-    let mut fi = File::open("input.txt").unwrap();
-    loop {       
-        //Read input file
-        let mut line1= String::new();
-        let mut line2= String::new();
-        let mut line3= String::new();
-        let len1 = fi.read_to_string(&mut line1).unwrap();
-        let len2 = fi.read_to_string(&mut line2).unwrap();
-        let len3 = fi.read_to_string(&mut line3).unwrap();
-        if len1 == 0 || len2 == 0 || len3 == 0 {
-            break;
+    let sys = actix::System::new();
+
+    println!("{}:INICIO", Local::now().format("%Y-%m-%d %H:%M:%S"));
+    let filename = r"transactions.txt";
+    let file = fs::File::open(filename).expect("Error: file not found!");
+    let  buf_reader =  io::BufReader::new(file);
+
+    sys.block_on(async {
+        
+        let addr_bank = BankActor { bank_connection: TcpStream::connect("127.0.0.1:7878").unwrap() }.start();
+        let addr_hotel = HotelActor { hotel_connection: TcpStream::connect("127.0.0.1:7879").unwrap() }.start();
+        let addr_airline = AirlineActor { airline_connection: TcpStream::connect("127.0.0.1:7880").unwrap() }.start();
+
+        for line in buf_reader.lines() {
+            let line_str: String = line.unwrap();
+            let separated_line: Vec<&str> = line_str.split(',').collect();
+    
+            let transaction_id = separated_line[0].trim().to_string().parse::<i32>().unwrap();
+            let bank_payment = separated_line[1].trim().to_string().parse::<f32>().unwrap();
+            let hotel_payment = separated_line[2].trim().to_string().parse::<f32>().unwrap();
+            let airline_payment = separated_line[3].trim().to_string().parse::<f32>().unwrap();
+
+            let result_hotel = addr_hotel.send(ReservationPrice(transaction_id, hotel_payment));
+
+            let result_bank = addr_bank.send(PaymentPrice(transaction_id, bank_payment));
+
+            let result_airline = addr_airline.send(FlightPrice(transaction_id, airline_payment)); 
+
+            
+            let res = join!(result_hotel, result_bank, result_airline ); //Resultado
+            println!("--------------");
+            match res.0 {
+                Ok(val) => println!("HOTEL TERMINO {}", val.unwrap()),
+                Err(_) => println!("HOTEL ERROR")
+            };
+            match res.1 {
+                Ok(val) => println!("BANCO TERMINO {}", val.unwrap()),
+                Err(_) => println!("BANCO ERROR")
+             };
+            match res.2 {
+                Ok(val) => println!("AEROLINEA TERMINO {}", val.unwrap()),
+                Err(_) => println!("AEROLINEA ERROR")
+            };
+            println!("--------------");
         }
-        let msg1 = commons::deserialize(line1).unwrap();
-        let msg2 = commons::deserialize(line2).unwrap();
-        let msg3 = commons::deserialize(line3).unwrap();
-        let t = thread::spawn(move || {
-            //broadcast commit when operation is ended correct
-            //broadcast rollback when operation fails
-        });
-        //faltaria agregar el join handle a algún arreglo de handles
-    }
+    });
+    System::current().stop();
+    sys.run().unwrap();
+    println!("{}:FIN", Local::now().format("%Y-%m-%d %H:%M:%S"));
+
 }
 
 fn wait_for_leader(pair: Arc<(Mutex<bool>, Condvar)>) {

@@ -34,9 +34,9 @@ fn main() {
 
     sys.block_on(async {
         
-        let addr_bank = BankActor { bank_connection: TcpStream::connect("127.0.0.1:7879").unwrap() }.start();
+        let addr_bank = BankActor { bank_connection: TcpStream::connect("127.0.0.1:7878").unwrap() }.start();
         let addr_hotel = HotelActor { hotel_connection: TcpStream::connect("127.0.0.1:7879").unwrap() }.start();
-        let addr_airline = AirlineActor { airline_connection: TcpStream::connect("127.0.0.1:7879").unwrap() }.start();
+        let addr_airline = AirlineActor { airline_connection: TcpStream::connect("127.0.0.1:7880").unwrap() }.start();
 
         for line in buf_reader.lines() {
             let line_str: String = line.unwrap();

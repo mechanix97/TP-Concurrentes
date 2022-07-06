@@ -1,32 +1,23 @@
 use serde::{Deserialize, Serialize};
 
-// pub fn mock_response(len: usize, value: i32) -> Result<(), std::io::Error> {
-//     let mut length = len;
-//     if value < 4 {
-//         Err(())
-//     }
-//     Ok(())
-// }
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Payment{pub id: i32, pub amount: f32}
 
-pub fn deserialize(serialized: String) -> Result<Payment, serde_json::Error> {
+#[allow(dead_code)]
+pub fn deserialize_pay(serialized: String) -> Result<Payment, serde_json::Error> {
     serde_json::from_str(&serialized)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum external_response{
+pub enum ExternalResponse{
     NACK,
     ACK   
 }
 
 
-pub fn deserialize_ext(serialized: String) -> Result<external_response, serde_json::Error> {
+pub fn deserialize_ext(serialized: String) -> Result<ExternalResponse, serde_json::Error> {
     serde_json::from_str(&serialized)
 }
-
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum DistMsg {

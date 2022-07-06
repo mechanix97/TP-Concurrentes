@@ -1,8 +1,8 @@
 use actix::prelude::*;
-use std::{net::TcpStream, io::Write, usize, thread::sleep};
+use std::{net::TcpStream, io::Write};
 use std::io::{self, BufRead};
 
-use crate::{payment::Payment, commons::commons::{deserialize_ext, external_response}};
+use crate::commons::commons::{deserialize_ext, ExternalResponse, Payment};
 
 
 #[derive(Message)]
@@ -32,8 +32,8 @@ impl Handler<FlightPrice> for AirlineActor {
                 } else{
                     ret = match deserialize_ext(s.trim_end().to_string()){
                         Ok(m) => match m {
-                            external_response::ACK =>  true,
-                            external_response::NACK => false,
+                            ExternalResponse::ACK =>  true,
+                            ExternalResponse::NACK => false,
                         }
                         Err(_) => false
                     };
@@ -54,7 +54,7 @@ pub struct AirlineActor { pub airline_connection: TcpStream }
 impl Actor for AirlineActor {
     type Context = Context<Self>;
 
-    fn started(&mut self, ctx: &mut Self::Context) {
+    fn started(&mut self, _ctx: &mut Self::Context) {
         println!("Actor Airline is alive!");
     }
 

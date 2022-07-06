@@ -38,24 +38,24 @@ fn handle_connection(mut stream: TcpStream) {
             Err(_) => break,
         };
         if value < 4 || s.is_empty() || len == 0 {
-            writer.write(&(serde_json::to_string(&external_response::NACK) 
+            writer.write(&(serde_json::to_string(&ExternalResponse::NACK) 
             .unwrap()
             + "\n")
                 .as_bytes(),
             )
             .unwrap();
         } else {
-            match deserialize(s.to_string()) {
-                Ok(val) => {
-                    writer.write(&(serde_json::to_string(&external_response::ACK) 
+            match deserialize_pay(s.to_string()) {
+                Ok(_) => {
+                    writer.write(&(serde_json::to_string(&ExternalResponse::ACK) 
                     .unwrap()
                         + "\n")
                         .as_bytes(),
                     )
                     .unwrap();
                 }
-                Err(err) => {
-                    writer.write(&(serde_json::to_string(&external_response::NACK) 
+                Err(_) => {
+                    writer.write(&(serde_json::to_string(&ExternalResponse::NACK) 
                     .unwrap()
                         + "\n")
                         .as_bytes(),
