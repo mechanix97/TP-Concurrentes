@@ -34,7 +34,7 @@ impl Handler<PaymentPrice> for BankActor {
         )
     }
 }
-pub struct BankActor { bank_connection: TcpStream }
+pub struct BankActor { pub bank_connection: TcpStream }
 
 impl Actor for BankActor {
     type Context = Context<Self>;

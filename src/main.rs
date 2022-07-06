@@ -47,25 +47,25 @@ fn main() {
             let hotel_payment = separated_line[2].trim().to_string().parse::<f32>().unwrap();
             let airline_payment = separated_line[3].trim().to_string().parse::<f32>().unwrap();
 
-            let result_hotel = addr_hotel.send(ReservationPrice(transaction_id, hotel_payment));
+            //let result_hotel = addr_hotel.send(ReservationPrice(transaction_id, hotel_payment));
 
-            let result_bank = addr_bank.send(PaymentPrice(transaction_id, bank_payment));
+            //let result_bank = addr_bank.send(PaymentPrice(transaction_id, bank_payment));
 
             let result_airline = addr_airline.send(FlightPrice(transaction_id, airline_payment)); 
 
+            let res = join!(result_airline);
+            // let res = join!(result_hotel, result_bank, result_airline ); //Resultado
             
-            let res = join!(result_hotel, result_bank, result_airline ); //Resultado
-            
+            // match res.0 {
+            //     Ok(_) => println!("HOTEL TERMINO OK"),
+            //     Err(_) => println!("HOTEL ERROR")
+            // };
+            // match res.1 {
+            //     Ok(_) => println!("BANCO TERMINO OK"),
+            //     Err(_) => println!("BANCO ERROR")
+            // };
             match res.0 {
-                Ok(_) => println!("HOTEL TERMINO OK"),
-                Err(_) => println!("HOTEL ERROR")
-            };
-            match res.1 {
-                Ok(_) => println!("BANCO TERMINO OK"),
-                Err(_) => println!("BANCO ERROR")
-            };
-            match res.2 {
-                Ok(_) => println!("AEROLINEA TERMINO OK"),
+                Ok(val) => println!("AEROLINEA TERMINO {}", val.unwrap()),
                 Err(_) => println!("AEROLINEA ERROR")
             };
             println!("{}:Termine transaccion", Local::now().format("%Y-%m-%d %H:%M:%S"));

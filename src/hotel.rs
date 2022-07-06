@@ -33,7 +33,7 @@ impl Handler<ReservationPrice> for HotelActor {
         )
     }
 }
-pub struct HotelActor { hotel_connection: TcpStream }
+pub struct HotelActor {pub hotel_connection: TcpStream }
 
 impl Actor for HotelActor {
     type Context = Context<Self>;

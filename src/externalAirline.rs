@@ -1,4 +1,4 @@
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, Write};
 use std::net::TcpListener;
 use std::net::TcpStream;
 use rand::distributions::{Uniform};
@@ -23,6 +23,7 @@ fn main() {
 }
 
 fn handle_connection(mut stream: TcpStream) {
+    let mut writer = stream.try_clone().unwrap();
     let mut reader = io::BufReader::new(&mut stream);
     let mut rng = rand::thread_rng();
     let distr: Uniform<i32> = Uniform::from(1..10);
@@ -32,21 +33,36 @@ fn handle_connection(mut stream: TcpStream) {
 
         let value = distr.sample(&mut rng);
 
-        let len = match reader.read_line(&mut s) {
-            Ok(len) => match mock_response(len, value) {
-                    Ok(val) if val > 0 => val,
-                    Ok(val) => 0,
-                    Err(_) => 0,
-                },
-            Err(_err) => 0,
+        let len = match reader.read_line(&mut s){
+            Ok(val) => val,
+            Err(_) => break,
         };
-        
-        if s.is_empty() || len == 0 {
-            return;
+        if value < 4 || s.is_empty() || len == 0 {
+            writer.write(&(serde_json::to_string(&external_response::NACK) 
+            .unwrap()
+            + "\n")
+                .as_bytes(),
+            )
+            .unwrap();
+        } else {
+            match deserialize(s.to_string()) {
+                Ok(val) => {
+                    writer.write(&(serde_json::to_string(&external_response::ACK) 
+                    .unwrap()
+                        + "\n")
+                        .as_bytes(),
+                    )
+                    .unwrap();
+                }
+                Err(err) => {
+                    writer.write(&(serde_json::to_string(&external_response::NACK) 
+                    .unwrap()
+                        + "\n")
+                        .as_bytes(),
+                    )
+                    .unwrap();
+                }
+            };
         }
-        match deserialize(s.to_string()) {
-            Ok(val) => println!("Payment to the Airline was successful for the transaction id and amount {}", s.to_string()),
-            Err(err) => println!("Error in payment to the Airline for transaction id and amount {}", s.to_string()),
-        };
-    }
+    }       
 }
