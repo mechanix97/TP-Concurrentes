@@ -399,6 +399,7 @@ fn leader_main_loop(id: u32, connections: Arc<Mutex<Vec<(TcpStream, u32, String,
         )
         .unwrap();
     }
+    println!("SOY LIDER");
     let mut fi = File::open("input.txt").unwrap();
     loop {       
         //Read input file

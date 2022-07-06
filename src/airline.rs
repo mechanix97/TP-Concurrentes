@@ -1,8 +1,5 @@
 use actix::prelude::*;
-use chrono::Local;
-use core::time;
 use std::{net::TcpStream, io::Write, usize, thread::sleep};
-use async_std::task;
 use std::io::{self, BufRead};
 
 use crate::{payment::Payment, commons::commons::{deserialize_ext, external_response}};
@@ -47,7 +44,6 @@ impl Handler<FlightPrice> for AirlineActor {
             .into_actor(self) // converts future to ActorFuture
             .map(|res, _act, _ctx| {
                 // Do some computation with actor's state or context
-                println!("{}: Mensaje aerolinea", Local::now().format("%Y-%m-%d %H:%M:%S"));
                 Ok(res)
             }),
         )
