@@ -11,13 +11,14 @@ use actix::{prelude::*};
 use futures::join;
 use chrono::Local;
 
-pub use crate::commons::commons::{deserialize_dist, DistMsg};
+pub use crate::commons::commons::{deserialize_dist, DistMsg, Deserialize_transaction};
 pub use crate::lib::*;
 
 pub use crate::hotel::{HotelActor, ReservationPrice};
 pub use crate::bank::{BankActor, PaymentPrice};
 pub use crate::airline::{FlightPrice, AirlineActor};
 
+pub use crate::logger::*;
 
 
 pub struct Replic {
@@ -414,15 +415,22 @@ fn leader_main_loop(id: u32, connections: Arc<Mutex<Vec<(TcpStream, u32, String,
         .unwrap();
     }
     println!("SOY LIDER");
-    sleep(time::Duration::from_secs(10));
+    let logger = Logger::new(format!("log/replic_{}.txt", id));
+    //sleep(time::Duration::from_secs(10));
     let sys = actix::System::new();
 
-    println!("{}:INICIO", Local::now().format("%Y-%m-%d %H:%M:%S"));
-    let filename = r"transactions.txt";
+    logger.log(format!("{}:INICIO", Local::now().format("%Y-%m-%d %H:%M:%S")));
+    let filename = r"input.txt";
     let file = fs::File::open(filename).expect("Error: file not found!");
     let  buf_reader =  io::BufReader::new(file);
 
-    sys.block_on(async {
+    for line in  buf_reader.lines() {
+        let transaction = Deserialize_transaction(line.unwrap()).unwrap();
+        //println!("{:?}", transaction);
+
+    }
+
+ /*   sys.block_on(async {
         
         let addr_bank = BankActor { bank_connection: TcpStream::connect("127.0.0.1:7878").unwrap() }.start();
         let addr_hotel = HotelActor { hotel_connection: TcpStream::connect("127.0.0.1:7879").unwrap() }.start();
@@ -492,9 +500,8 @@ fn leader_main_loop(id: u32, connections: Arc<Mutex<Vec<(TcpStream, u32, String,
     
     System::current().stop();
     sys.run().unwrap();
-    
-    println!("{}: TERMINO TRANSACCIONES", Local::now().format("%Y-%m-%d %H:%M:%S"));
-
+    */
+    logger.log(format!("{}: TERMINO TRANSACCIONES", Local::now().format("%Y-%m-%d %H:%M:%S")));
 }
 
 fn wait_for_leader(pair: Arc<(Mutex<bool>, Condvar)>) {

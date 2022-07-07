@@ -7,6 +7,7 @@ mod replic;
 mod hotel;
 mod bank;
 mod airline;
+mod logger;
 
 fn main() {
     let args: Vec<_> = env::args().collect();

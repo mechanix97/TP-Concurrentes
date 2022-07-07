@@ -24,7 +24,11 @@ impl Logger {
     }
 
     pub fn log(&self, line: String) {
-        self.sender.lock().unwrap().send(line).unwrap();
+        if line.chars().last().unwrap() == '\n'{
+            self.sender.lock().unwrap().send(line).unwrap();
+        } else {
+            self.sender.lock().unwrap().send(format!("{}\n", line)).unwrap();
+        }        
     }
 }
 
