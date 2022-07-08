@@ -24,9 +24,6 @@ pub fn exec(id: u32, connections: Arc<Mutex<Vec<(TcpStream, u32, String, String,
     }   
 }
 
-
-
-
 fn check_leader_alive(
     connections: Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>,
     main_leader_alive: Arc<AtomicBool>,

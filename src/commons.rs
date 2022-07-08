@@ -52,7 +52,7 @@ pub enum DistMsg {
     Election {
         id: u32,
     },
-    Leader {
+    NewLeader {
         id: u32,
     },
     Commit {
@@ -63,6 +63,7 @@ pub enum DistMsg {
     },
     Ping,
     Pong,
+    Shutdown {hostname: String, port: String, shutdown: bool},
 }
 
 #[allow(dead_code)]

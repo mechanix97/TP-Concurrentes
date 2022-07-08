@@ -10,7 +10,7 @@ pub use crate::commons::{deserialize_transaction, DistMsg};
 
 pub fn exec(id: u32, connections: Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>) {
     for c in &mut *connections.lock().unwrap() {
-        c.0.write(&(serde_json::to_string(&DistMsg::Leader { id: id }).unwrap() + "\n").as_bytes())
+        c.0.write(&(serde_json::to_string(&DistMsg::NewLeader { id: id }).unwrap() + "\n").as_bytes())
             .unwrap();
     }
     println!("SOY LIDER");

@@ -27,11 +27,38 @@ pub struct Alglobo {
     threadpool: Arc<ThreadPool>,
     leader_alive: Arc<AtomicBool>,
     leader_ok: Arc<(Mutex<bool>, Condvar)>,
+    listener: Option<TcpListener>
 }
 
 impl Alglobo {
     pub fn join(self: &mut Self) {
+        for c in &mut *self.connections.lock().unwrap(){
+            c.0.write(
+                &(serde_json::to_string(&DistMsg::Shutdown {
+                    hostname: self.hostname.clone(),
+                    port: self.port.clone(),
+                    shutdown: false,
+                })
+                .unwrap()
+                    + "\n")
+                    .as_bytes(),
+            )
+            .unwrap();
+        }
+        
         drop(&self.threadpool);
+        
+        match &self.listener {
+            Some(l) => l.set_nonblocking(true).unwrap(),
+            None => {}
+        }
+
+        TcpStream::connect(format!(
+            "{}:{}",
+            self.hostname.clone(),
+            self.port.clone()
+        ))
+        .unwrap();
 
         match self.join_handle.take() {
             Some(h) => {
@@ -53,6 +80,7 @@ impl Alglobo {
             threadpool: Arc::new(ThreadPool::new(100)),
             leader_alive: Arc::new(AtomicBool::new(false)),
             leader_ok: Arc::new((Mutex::new(false), Condvar::new())),
+            listener: None
         }
     }
 
@@ -97,9 +125,16 @@ impl Alglobo {
         let leader_alive = self.leader_alive.clone();
         let leader_ok = self.leader_ok.clone();
 
+        let listener = TcpListener::bind(format!("{}:{}", h, p)).unwrap();
+        self.listener = Some(listener.try_clone().unwrap());
+
         let t = thread::spawn(move || {
-            let listener = TcpListener::bind(format!("{}:{}", h, p)).unwrap();
-            for stream in listener.incoming() {
+            loop {
+                let stream = match listener.accept() {
+                    Ok(v) => v.0,
+                    Err(_) => break
+                };
+                
                 let mid = id;
                 let connections_pool = connections.clone();
                 let la = leader_alive.clone();
@@ -107,7 +142,7 @@ impl Alglobo {
                 let lo = leader_ok.clone();
 
                 pool.execute(move || {
-                    let read_stream = stream.unwrap();
+                    let read_stream = stream;
                     let mut writer = read_stream.try_clone().unwrap();
                     let mut reader = io::BufReader::new(read_stream);
                     loop {
@@ -156,7 +191,7 @@ impl Alglobo {
                                 DistMsg::Election { id: _ } => {
                                     replic::msg_election::exec(writer.try_clone().unwrap(), mid);
                                 }
-                                DistMsg::Leader { id } => {
+                                DistMsg::NewLeader { id } => {
                                     for c in &mut *connections_pool.lock().unwrap() {
                                         if c.1 == id {
                                             c.4 = true;
@@ -183,7 +218,16 @@ impl Alglobo {
                                         .unwrap();
                                 }
                                 DistMsg::Pong => {
-                                    println!("Pong")
+                                    println!("Pong");
+                                    break;
+                                }
+                                DistMsg::Shutdown {hostname, port, shutdown } => {
+                                    if shutdown {
+                                        break;
+                                    } else {
+                                        replic::msg_shutdown::exec(hostname, port, connections_pool.clone());
+                                    }
+                                    
                                 }
                             },
                             Err(err) => println!("ERROR: {}", err),

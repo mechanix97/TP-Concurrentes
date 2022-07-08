@@ -22,7 +22,6 @@ fn main() {
         replic.start_as_leader();
 
         read_q();
-
         replic.join();
     } else if args.len() == 6 {
         replic = Alglobo::new(args[1].parse::<u32>().unwrap(), &args[2], &args[3]);
