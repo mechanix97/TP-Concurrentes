@@ -1,10 +1,10 @@
+use chrono::Local;
 use std::fs;
 use std::io::prelude::*;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
-use chrono::Local;
 pub struct Logger {
     sender: Arc<Mutex<mpsc::Sender<String>>>,
     writter: Arc<Writter>,
@@ -13,10 +13,7 @@ pub struct Logger {
 impl Logger {
     pub fn new(file_name: String) -> Logger {
         let (sender, receiver) = mpsc::channel();
-        let writter = Writter::new(
-            Arc::new(Mutex::new(receiver)),
-            file_name,
-        );
+        let writter = Writter::new(Arc::new(Mutex::new(receiver)), file_name);
         Logger {
             sender: Arc::new(Mutex::new(sender)),
             writter: Arc::new(writter),
@@ -24,17 +21,24 @@ impl Logger {
     }
 
     pub fn log(&self, line: String) {
-        if line.chars().last().unwrap() == '\n'{
+        if line.chars().last().unwrap() == '\n' {
             self.sender.lock().unwrap().send(line).unwrap();
         } else {
-            self.sender.lock().unwrap().send(format!("{}\n", line)).unwrap();
-        }        
+            self.sender
+                .lock()
+                .unwrap()
+                .send(format!("{}\n", line))
+                .unwrap();
+        }
     }
 }
 
-impl Clone for Logger{
+impl Clone for Logger {
     fn clone(&self) -> Logger {
-        Logger { sender: self.sender.clone(), writter: self.writter.clone() }
+        Logger {
+            sender: self.sender.clone(),
+            writter: self.writter.clone(),
+        }
     }
 }
 
@@ -49,11 +53,12 @@ impl Writter {
             loop {
                 match receiver.lock().unwrap().recv() {
                     Ok(line) => {
-
                         file.write_all(
-                            format!("{}: {}", Local::now().format("%Y-%m-%d %H:%M:%S"), line).as_bytes()
-                        ).unwrap();}
-                        ,
+                            format!("{}: {}", Local::now().format("%Y-%m-%d %H:%M:%S"), line)
+                                .as_bytes(),
+                        )
+                        .unwrap();
+                    }
                     Err(mpsc::RecvError) => break, //closed
                 }
             }
@@ -65,7 +70,7 @@ impl Writter {
     }
 }
 
-impl Drop for Writter{
+impl Drop for Writter {
     fn drop(self: &mut Writter) {
         self.thread.take().unwrap().join().unwrap();
     }

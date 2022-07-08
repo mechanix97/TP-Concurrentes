@@ -6,19 +6,19 @@ default-run = "alglobo"
 
 [[bin]]
 name = "alglobo"
-path = "src/alglobo.rs"
+path = "src/main.rs"
 
 [[bin]]
 name = "bank"
-path = "src/externalBank.rs"
+path = "src/bank.rs"
 
 [[bin]]
 name = "airline"
-path = "src/externalAirline.rs"
+path = "src/airline.rs"
 
 [[bin]]
 name = "hotel"
-path = "src/externalHotel.rs"
+path = "src/hotel.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

@@ -1,63 +1,69 @@
-use actix::prelude::*;
-use std::{net::TcpStream, io::Write};
-use std::io::{self, BufRead};
+use rand::distributions::Uniform;
+use rand::prelude::Distribution;
+use std::io::{self, BufRead, Write};
+use std::net::TcpListener;
+use std::net::TcpStream;
 
-use crate::commons::commons::{deserialize_ext, ExternalResponse, Payment};
+mod commons;
+mod lib;
 
-#[derive(Message)]
-#[rtype(result = "Result<bool, ()>")]
-pub struct ReservationPrice(pub i32, pub f32);
+use crate::commons::{deserialize_pay, ExternalResponse};
+use crate::lib::ThreadPool;
 
-impl Handler<ReservationPrice> for HotelActor {
-    type Result = ResponseActFuture<Self, Result<bool, ()>>;
+fn main() {
+    let listener = TcpListener::bind("127.0.0.1:7880").unwrap();
+    let pool = ThreadPool::new(4);
 
-    fn handle(&mut self, msg: ReservationPrice, _ctx: &mut Context<Self>) -> Self::Result {
-        let message = Payment{id: msg.0, amount: msg.1};
-
-        let mut writer = self.hotel_connection.try_clone().unwrap();
-        let mut reader = io::BufReader::new(self.hotel_connection.try_clone().unwrap());
-        Box::pin(
-            async move {
-                let ret;
-                writer.write_all(&(serde_json::to_string(&message).unwrap()+"\n").as_bytes()).unwrap();
-                let mut s = String::new();
-
-                let len = match reader.read_line(&mut s) {
-                    Ok(val) => val,
-                    Err(_err) => 0,
-                };
-                if s.is_empty() || len == 0 {
-                   ret = false; 
-                } else{
-                    ret = match deserialize_ext(s.trim_end().to_string()){
-                        Ok(m) => match m {
-                            ExternalResponse::ACK =>  true,
-                            ExternalResponse::NACK => false,
-                        }
-                        Err(_) => false
-                    };
-                }
-                ret
-                
-            }
-            .into_actor(self) // converts future to ActorFuture
-            .map(|res, _act, _ctx| {
-                // Do some computation with actor's state or context
-                Ok(res)
-            }),
-        )
+    for stream in listener.incoming() {
+        let stream = stream.unwrap();
+        pool.execute(|| {
+            handle_connection(stream);
+        });
     }
 }
-pub struct HotelActor {pub hotel_connection: TcpStream }
 
-impl Actor for HotelActor {
-    type Context = Context<Self>;
+fn handle_connection(mut stream: TcpStream) {
+    let mut writer = stream.try_clone().unwrap();
+    let mut reader = io::BufReader::new(&mut stream);
+    let mut rng = rand::thread_rng();
+    let distr: Uniform<i32> = Uniform::from(1..10);
 
-    fn started(&mut self, _ctx: &mut Self::Context) {
-        println!("Actor Hotel is alive!");
-    }
+    loop {
+        let mut s = String::new();
 
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
-        println!("Actor Hotel is stopped");
+        let value = distr.sample(&mut rng);
+
+        let len = match reader.read_line(&mut s) {
+            Ok(val) => val,
+            Err(_) => break,
+        };
+        if value < 4 || s.is_empty() || len == 0 {
+            match writer
+                .write(&(serde_json::to_string(&ExternalResponse::NACK).unwrap() + "\n").as_bytes())
+            {
+                Ok(_) => {}
+                Err(_) => break,
+            }
+        } else {
+            match deserialize_pay(s.to_string()) {
+                Ok(_) => {
+                    match writer.write(
+                        &(serde_json::to_string(&ExternalResponse::ACK).unwrap() + "\n").as_bytes(),
+                    ) {
+                        Ok(_) => {}
+                        Err(_) => break,
+                    }
+                }
+                Err(_) => {
+                    match writer.write(
+                        &(serde_json::to_string(&ExternalResponse::NACK).unwrap() + "\n")
+                            .as_bytes(),
+                    ) {
+                        Ok(_) => {}
+                        Err(_) => break,
+                    }
+                }
+            };
+        }
     }
 }
