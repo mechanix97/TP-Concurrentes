@@ -1,6 +1,5 @@
 use core::time;
-use std::io::{self, BufRead, Write};
-use std::net::TcpStream;
+use std::io::{self, BufRead};
 use std::sync::atomic::AtomicBool;
 use std::sync::Condvar;
 use std::sync::{atomic::Ordering, Arc, Mutex};
@@ -10,10 +9,11 @@ use crate::leader;
 pub use crate::logger::*;
 pub use crate::transaction_writer::*;
 pub use crate::commons::{deserialize_dist, DistMsg};
+pub use crate::connection::*;
 
 pub fn exec(
     id: u32,
-    connections: Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>,
+    connections: Arc<Mutex<Vec<Connection>>>,
     main_leader_alive: Arc<AtomicBool>,
     is_leader: Arc<Mutex<bool>>,
     leader_ok: Arc<(Mutex<bool>, Condvar)>,
@@ -35,7 +35,7 @@ pub fn exec(
 }
 
 fn check_leader_alive(
-    connections: Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>,
+    connections: Arc<Mutex<Vec<Connection>>>,
     main_leader_alive: Arc<AtomicBool>,
 ) {
     loop {
@@ -43,13 +43,13 @@ fn check_leader_alive(
         thread::sleep(time::Duration::from_secs(5));
         if !main_leader_alive.load(Ordering::Relaxed) {
             for c in &mut *connections.lock().unwrap() {
-                if c.4 {
-                    c.0.write(&DistMsg::Ping.to_string().as_bytes()).unwrap();
+                if c.is_leader() {
+                    c.write(DistMsg::Ping);
+                    println!("HAGO PING");
+                    let s = c.get_stream();
+                    s.set_read_timeout(Some(time::Duration::from_secs(5))).unwrap();
 
-                    c.0.set_read_timeout(Some(time::Duration::from_secs(5)))
-                        .unwrap();
-
-                    let mut reader = io::BufReader::new(c.0.try_clone().unwrap());
+                    let mut reader = io::BufReader::new(s);
                     let mut s = String::new();
 
                     let _ = match reader.read_line(&mut s) {
@@ -59,6 +59,7 @@ fn check_leader_alive(
                     match deserialize_dist(s.to_string()) {
                         Ok(val) => match val {
                             DistMsg::Pong => {
+                                println!("RECIBO PONG");
                                 main_leader_alive.store(true, Ordering::Relaxed);
                             }
                             _ => {}
@@ -72,19 +73,19 @@ fn check_leader_alive(
             }
         }
     }
-}
+} 
 
 /// Return True if replic is new leader
 fn election(
     mid: u32,
-    connections: Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>,
+    connections: Arc<Mutex<Vec<Connection>>>,
 ) -> bool {
     //Elimino al leader de la lista de conexiones
     let index = connections
         .lock()
         .unwrap()
         .iter()
-        .position(|c| c.4)
+        .position(|c| c.is_leader())
         .unwrap();
     {
         connections.lock().unwrap().remove(index);    
@@ -93,11 +94,10 @@ fn election(
     let mut amileader = true;
 
     for c in &mut *connections.lock().unwrap() {
-        c.0.write(&DistMsg::Election { id: mid }.to_string().as_bytes())
-            .unwrap();
-        c.0.set_read_timeout(Some(time::Duration::from_secs(5)))
-            .unwrap();
-        let mut reader = io::BufReader::new(c.0.try_clone().unwrap());
+        c.write(DistMsg::Election { id: mid });
+        let s = c.get_stream();
+        s.set_read_timeout(Some(time::Duration::from_secs(5))).unwrap();
+        let mut reader = io::BufReader::new(s);
         let mut s = String::new();
 
         let _ = match reader.read_line(&mut s) {

@@ -12,6 +12,7 @@ mod logger;
 mod replic;
 mod common;
 mod transaction_writer;
+mod connection;
 
 pub use crate::alglobo::*;
 

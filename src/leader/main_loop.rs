@@ -1,7 +1,6 @@
 use core::time;
 use std::fs;
-use std::io::{self, BufRead, Write};
-use std::net::TcpStream;
+use std::io::{self, BufRead};
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 
@@ -9,17 +8,17 @@ pub use crate::logger::*;
 
 pub use crate::commons::{deserialize_transaction, DistMsg};
 pub use crate::transaction_writer::*;
+pub use crate::connection::*;
 
 pub fn exec(
     id: u32,
-    connections: Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>,
+    connections: Arc<Mutex<Vec<Connection>>>,
     logger: Logger,
     commiter: TransactionWriter, 
     rollbacker: TransactionWriter
 ) {
     for c in &mut *connections.lock().unwrap() {
-        c.0.write(&DistMsg::NewLeader { id: id }.to_string().as_bytes())
-            .unwrap();
+        c.write(DistMsg::NewLeader { id: id });
     }
     println!("SOY LIDER");
 
@@ -31,11 +30,6 @@ pub fn exec(
 
     logger.log("start processing".to_string());
 
-    for c in &mut*connections.lock().unwrap() {
-       println!("CONEXION ID: {}, {}:{}", c.1, c.2, c.3);
-    }
-
-
     for line in buf_reader.lines() {
         let l = line.unwrap();
         //logger.log(format!("processing transction: {}", l));
@@ -43,9 +37,7 @@ pub fn exec(
 
         let mut cc = connections.lock().unwrap();
         for c in &mut*cc {
-            c.0.write(&DistMsg::Commit{transaction: transaction.to_string()}.to_string()
-                    .as_bytes(),
-            ).unwrap();
+            c.write(DistMsg::Commit{transaction: transaction.to_string()});
         }
         
     }

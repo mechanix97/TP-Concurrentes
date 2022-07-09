@@ -18,6 +18,7 @@ pub use crate::commons::{deserialize_dist, DistMsg};
 pub use crate::lib::*;
 pub use crate::logger::*;
 pub use crate::transaction_writer::*;
+pub use crate::connection::*;
 
 pub struct Alglobo {
     id: u32,
@@ -26,7 +27,7 @@ pub struct Alglobo {
     is_leader: Arc<Mutex<bool>>,
     join_handle: Option<JoinHandle<()>>,
     main_join_handle: Option<JoinHandle<()>>,
-    connections: Arc<Mutex<Vec<(TcpStream, u32, String, String, bool)>>>,
+    connections: Arc<Mutex<Vec<Connection>>>,
     threadpool: Arc<ThreadPool>,
     leader_alive: Arc<AtomicBool>,
     leader_ok: Arc<(Mutex<bool>, Condvar)>,
@@ -36,16 +37,14 @@ pub struct Alglobo {
 impl Alglobo {
     pub fn join(self: &mut Self) {
         for c in &mut *self.connections.lock().unwrap() {
-            c.0.write(
-                &DistMsg::Shutdown {
+            c.write(DistMsg::Shutdown {
                     hostname: self.hostname.clone(),
                     port: self.port.clone(),
                     shutdown: false,
                 }
-                .to_string()
-                .as_bytes(),
+                
             )
-            .unwrap();
+            
         }
 
         drop(&self.threadpool);
@@ -237,8 +236,8 @@ impl Alglobo {
                                 ));
 
                                 for c in &mut *connections_pool.lock().unwrap() {
-                                    if c.1 == id {
-                                        c.4 = true;
+                                    if c.get_id() == id {
+                                        c.set_as_leader();
                                     }
                                 }
                                 let (lock, cvar) = &*lo;
@@ -307,33 +306,21 @@ impl Alglobo {
     }
 
     fn connect(&mut self, replic_hostname: String, replic_port: String) {
-        let mut stream = TcpStream::connect(format!(
-            "{}:{}",
-            replic_hostname.clone(),
-            replic_port.clone()
-        ))
-        .unwrap();
+        let mut newconnetion = Connection::new(0, replic_hostname, replic_port);
+        
+        newconnetion.set_as_leader();
+        
+        newconnetion.write(DistMsg::Discover {
+            id: self.id,
+            hostname: self.hostname.to_string(),
+            port: self.port.to_string(),
+        });
 
-        stream
-            .write(
-                &DistMsg::Discover {
-                    id: self.id,
-                    hostname: self.hostname.to_string(),
-                    port: self.port.to_string(),
-                }
-                .to_string()
-                .as_bytes(),
-            )
-            .unwrap();
-
-        let h = replic_hostname.clone();
-        let r = replic_port.clone();
-        {
-            //agrego conexion del leader a la lista (asumo id = 0 mas bajo posible)
+        {   //agrego conexion del leader a la lista (asumo id = 0 mas bajo posible)
             self.connections
                 .lock()
                 .unwrap()
-                .push((stream, 0, h.to_string(), r.to_string(), true));
+                .push(newconnetion);
         }
     }
 }
