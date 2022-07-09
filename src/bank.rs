@@ -7,7 +7,7 @@ use std::net::TcpStream;
 mod commons;
 mod lib;
 
-use crate::commons::{deserialize_pay, ExternalResponse};
+use crate::commons::{deserialize_pay, ExternalMsg};
 use crate::lib::ThreadPool;
 
 fn main() {
@@ -38,31 +38,20 @@ fn handle_connection(mut stream: TcpStream) {
             Err(_) => break,
         };
         if value < 4 || s.is_empty() || len == 0 {
-            match writer
-                .write(&(serde_json::to_string(&ExternalResponse::NACK).unwrap() + "\n").as_bytes())
-            {
+            match writer.write(&ExternalMsg::NACK.to_string().as_bytes()) {
                 Ok(_) => {}
                 Err(_) => break,
             }
         } else {
             match deserialize_pay(s.to_string()) {
-                Ok(_) => {
-                    match writer.write(
-                        &(serde_json::to_string(&ExternalResponse::ACK).unwrap() + "\n").as_bytes(),
-                    ) {
-                        Ok(_) => {}
-                        Err(_) => break,
-                    }
-                }
-                Err(_) => {
-                    match writer.write(
-                        &(serde_json::to_string(&ExternalResponse::NACK).unwrap() + "\n")
-                            .as_bytes(),
-                    ) {
-                        Ok(_) => {}
-                        Err(_) => break,
-                    }
-                }
+                Ok(_) => match writer.write(&ExternalMsg::ACK.to_string().as_bytes()) {
+                    Ok(_) => {}
+                    Err(_) => break,
+                },
+                Err(_) => match writer.write(&ExternalMsg::NACK.to_string().as_bytes()) {
+                    Ok(_) => {}
+                    Err(_) => break,
+                },
             };
         }
     }

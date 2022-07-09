@@ -10,6 +10,8 @@ mod leader;
 mod lib;
 mod logger;
 mod replic;
+mod common;
+mod transaction_writer;
 
 pub use crate::alglobo::*;
 

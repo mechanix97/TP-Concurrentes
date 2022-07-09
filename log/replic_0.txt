@@ -1,2 +1,5 @@
-2022-07-07 23:23:01: 2022-07-07 23:23:01: Start processing
-2022-07-07 23:23:01: 2022-07-07 23:23:01: end procesing
+2022-07-09 16:25:43: new connection from 127.0.0.1:55302
+2022-07-09 16:25:43: received Discover from 127.0.0.1:55302
+2022-07-09 16:25:47: start processing
+2022-07-09 16:25:48: received Ping from 127.0.0.1:55302
+2022-07-09 16:25:50: received Shutdown from 127.0.0.1:55302

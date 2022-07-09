@@ -2,7 +2,7 @@ use actix::prelude::*;
 use std::io::{self, BufRead};
 use std::{io::Write, net::TcpStream};
 
-use crate::commons::{deserialize_ext, ExternalResponse, Payment};
+use crate::commons::{deserialize_ext, ExternalMsg, Payment};
 
 #[derive(Message)]
 #[rtype(result = "Result<bool, ()>")]
@@ -36,8 +36,8 @@ impl Handler<PaymentPrice> for BankActor {
                 } else {
                     ret = match deserialize_ext(s.trim_end().to_string()) {
                         Ok(m) => match m {
-                            ExternalResponse::ACK => true,
-                            ExternalResponse::NACK => false,
+                            ExternalMsg::ACK => true,
+                            ExternalMsg::NACK => false,
                         },
                         Err(_) => false,
                     };

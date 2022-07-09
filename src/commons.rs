@@ -33,7 +33,7 @@ pub struct Transaction {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum ExternalResponse {
+pub enum ExternalMsg {
     NACK,
     ACK,
 }
@@ -63,7 +63,37 @@ pub enum DistMsg {
     },
     Ping,
     Pong,
-    Shutdown {hostname: String, port: String, shutdown: bool},
+    Shutdown {
+        hostname: String,
+        port: String,
+        shutdown: bool,
+    },
+}
+
+impl DistMsg {
+    #[allow(dead_code)]
+    pub fn to_string(&self) -> String {
+        serde_json::to_string(&self).unwrap() + "\n"
+    }
+}
+
+impl ExternalMsg {
+    #[allow(dead_code)]
+    pub fn to_string(&self) -> String {
+        serde_json::to_string(&self).unwrap() + "\n"
+    }
+}
+
+impl Transaction {
+    #[allow(dead_code)]
+    pub fn to_string(&self) -> String {
+        serde_json::to_string(&self).unwrap() + "\n"
+    }
+
+    #[allow(dead_code)]
+    pub fn get_id(&self) -> u32 {
+        self.id
+    }
 }
 
 #[allow(dead_code)]
@@ -77,7 +107,7 @@ pub fn deserialize_pay(serialized: String) -> Result<Payment, serde_json::Error>
 }
 
 #[allow(dead_code)]
-pub fn deserialize_ext(serialized: String) -> Result<ExternalResponse, serde_json::Error> {
+pub fn deserialize_ext(serialized: String) -> Result<ExternalMsg, serde_json::Error> {
     serde_json::from_str(&serialized)
 }
 
@@ -108,3 +138,4 @@ mod tests {
         }
     }
 }
+

@@ -5,6 +5,7 @@ use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
+
 pub struct Logger {
     sender: Arc<Mutex<mpsc::Sender<String>>>,
     writter: Arc<Writter>,
@@ -42,7 +43,7 @@ impl Clone for Logger {
     }
 }
 
-pub struct Writter {
+struct Writter {
     thread: Option<thread::JoinHandle<()>>,
 }
 
