@@ -32,6 +32,8 @@ pub enum ExternalMsg {
     NACK {id: u32},
     ACK {id: u32},
     Stop,
+    Commit {id: u32},
+    Rollback{id: u32},
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub enum DistMsg {

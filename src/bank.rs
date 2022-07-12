@@ -1,10 +1,7 @@
-use rand::distributions::Uniform;
-use rand::prelude::Distribution;
-use core::time;
+use rand::Rng;
 use std::io::{self, BufRead, Write};
 use std::net::TcpListener;
 use std::net::TcpStream;
-use std::thread::sleep;
 
 mod commons;
 mod lib;
@@ -27,9 +24,6 @@ fn main() {
 fn handle_connection(mut stream: TcpStream) {
     let mut writer = stream.try_clone().unwrap();
     let mut reader = io::BufReader::new(&mut stream);
-  
-    // let mut rng = rand::thread_rng();
-    // let distr: Uniform<i32> = Uniform::from(1..10);
 
     loop {
         let mut s = String::new();
@@ -45,17 +39,18 @@ fn handle_connection(mut stream: TcpStream) {
             Ok(v) => {
                 match v{
                     ExternalMsg::Prepare {transaction: t} => {
-                        writer.write(ExternalMsg::ACK{id: t.get_id()}.to_string().as_bytes()).unwrap();
+                        let mut rng = rand::thread_rng();
+                        let random = rng.gen::<f64>();
+                        if random < 0.1 {
+                            writer.write(ExternalMsg::NACK{id: t.get_id()}.to_string().as_bytes()).unwrap();
+                        } else{
+                            writer.write(ExternalMsg::ACK{id: t.get_id()}.to_string().as_bytes()).unwrap();
+                        }                       
                     },
-                    ExternalMsg::ACK{id} => {
-
-                    }
-                    ExternalMsg::NACK {id}=> {
-
-                    }
                     ExternalMsg::Stop => {
                         writer.write(ExternalMsg::Stop.to_string().as_bytes()).unwrap();
-                    }
+                    },
+                    _ => (),
                 }            
             }
             Err(_) => continue,

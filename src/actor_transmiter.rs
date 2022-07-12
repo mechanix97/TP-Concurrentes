@@ -7,9 +7,9 @@ use crate::commons::{deserialize_ext, ExternalMsg, Transaction};
 
 #[derive(Copy, Clone)]
 enum TransactionStatus{
-    waiting,
-    nack,
-    ack
+    Waiting,
+    Nack,
+    Ack
 }
 
 pub struct Transmiter {
@@ -23,7 +23,7 @@ impl Transmiter{
         Transmiter {
             stream: stream,
             handle: None,
-            status: TransactionStatus::waiting
+            status: TransactionStatus::Waiting
         }
     }
 }
@@ -38,7 +38,6 @@ impl Handler<PrepareTransaction> for Transmiter {
     type Result = ();
 
     fn handle(&mut self, msg: PrepareTransaction, _ctx: &mut Context<Self>) -> Self::Result {
-        let id = msg.transaction.get_id();
         let msg = ExternalMsg::Prepare{transaction: msg.transaction};
         self.stream.write_all(msg.to_string().as_bytes()).unwrap();
         
@@ -51,8 +50,8 @@ pub struct AckResponseMsg{}
 
 impl Handler<AckResponseMsg> for Transmiter {
     type Result = ();
-    fn handle(&mut self, msg: AckResponseMsg, ctx: &mut Context<Self>) -> Self::Result {  
-        self.status = TransactionStatus::ack;
+    fn handle(&mut self, _msg: AckResponseMsg, _ctx: &mut Context<Self>) -> Self::Result {  
+        self.status = TransactionStatus::Ack;
     }
 }
 
@@ -62,8 +61,8 @@ pub struct NackResponseMsg{}
 
 impl Handler<NackResponseMsg> for Transmiter {
     type Result = ();
-    fn handle(&mut self, msg: NackResponseMsg, ctx: &mut Context<Self>) -> Self::Result {  
-        self.status = TransactionStatus::nack;
+    fn handle(&mut self, _msg: NackResponseMsg, _ctx: &mut Context<Self>) -> Self::Result {  
+        self.status = TransactionStatus::Nack;
     }
 }
 
@@ -79,9 +78,9 @@ impl Handler<PrepareResponse> for Transmiter {
     fn handle(&mut self, msg: PrepareResponse, ctx: &mut Context<Self>) -> Self::Result {       
         let add = ctx.address(); 
         match self.status {
-            TransactionStatus::nack => Box::pin(async move{false}),
-            TransactionStatus::ack => Box::pin(async move{true}),
-            TransactionStatus::waiting => {
+            TransactionStatus::Nack => Box::pin(async move{false}),
+            TransactionStatus::Ack => Box::pin(async move{true}),
+            TransactionStatus::Waiting => {
                 Box::pin(async move {
                     actix_rt::task::yield_now().await;
                     add.send(msg).await.unwrap()

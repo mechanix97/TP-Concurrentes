@@ -46,7 +46,6 @@ fn check_leader_alive(
             for c in &mut *connections.lock().unwrap() {
                 if c.is_leader() {
                     c.write(DistMsg::Ping);
-                    println!("HAGO PING");
                     let s = c.get_stream();
                     s.set_read_timeout(Some(time::Duration::from_secs(5))).unwrap();
 
@@ -60,7 +59,6 @@ fn check_leader_alive(
                     match deserialize_dist(s.to_string()) {
                         Ok(val) => match val {
                             DistMsg::Pong => {
-                                println!("RECIBO PONG");
                                 main_leader_alive.store(true, Ordering::Relaxed);
                             }
                             _ => {}

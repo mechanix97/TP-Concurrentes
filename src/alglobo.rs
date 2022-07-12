@@ -37,7 +37,6 @@ impl Alglobo {
         {
             *self.running.lock().unwrap() = false;
         }
-        println!("1"); 
         for c in &mut *self.connections.lock().unwrap() {
             c.write(DistMsg::Shutdown {
                     hostname: self.hostname.clone(),
@@ -233,10 +232,10 @@ impl Alglobo {
                                 println!("SOY REPLICA");
                             }
                             DistMsg::Commit { transaction } => {
-                                common::msg_commit::exec(logger_pool.clone(), commiter_pool.clone(), remote_host.to_string(), remote_port.to_string(), transaction.clone());
+                                common::msg_commit::exec(logger_pool.clone(), commiter_pool.clone(), remote_host.to_string(), remote_port.to_string(), transaction.clone(), la.clone());
                             }
                             DistMsg::Rollback { transaction } => {
-                                common::msg_rollback::exec(logger_pool.clone(), rollbacker_pool.clone(), remote_host.to_string(), remote_port.to_string(), transaction.clone());
+                                common::msg_rollback::exec(logger_pool.clone(), rollbacker_pool.clone(), remote_host.to_string(), remote_port.to_string(), transaction.clone(), la.clone());
                             }
                             DistMsg::Ping => {
                                 logger_pool.log(format!(
