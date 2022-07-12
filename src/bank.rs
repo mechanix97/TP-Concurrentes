@@ -1,13 +1,15 @@
 use rand::distributions::Uniform;
 use rand::prelude::Distribution;
+use core::time;
 use std::io::{self, BufRead, Write};
 use std::net::TcpListener;
 use std::net::TcpStream;
+use std::thread::sleep;
 
 mod commons;
 mod lib;
 
-use crate::commons::{deserialize_pay, ExternalMsg};
+use crate::commons::{deserialize_ext, ExternalMsg};
 use crate::lib::ThreadPool;
 
 fn main() {
@@ -25,34 +27,38 @@ fn main() {
 fn handle_connection(mut stream: TcpStream) {
     let mut writer = stream.try_clone().unwrap();
     let mut reader = io::BufReader::new(&mut stream);
-    let mut rng = rand::thread_rng();
-    let distr: Uniform<i32> = Uniform::from(1..10);
+  
+    // let mut rng = rand::thread_rng();
+    // let distr: Uniform<i32> = Uniform::from(1..10);
 
     loop {
         let mut s = String::new();
-
-        let value = distr.sample(&mut rng);
-
         let len = match reader.read_line(&mut s) {
             Ok(val) => val,
-            Err(_) => break,
+            Err(_) => continue,
         };
-        if value < 4 || s.is_empty() || len == 0 {
-            match writer.write(&ExternalMsg::NACK.to_string().as_bytes()) {
-                Ok(_) => {}
-                Err(_) => break,
+        if s.is_empty() || len == 0 {
+            continue;
+        }
+
+        match deserialize_ext( s ) {
+            Ok(v) => {
+                match v{
+                    ExternalMsg::Prepare {transaction: t} => {
+                        writer.write(ExternalMsg::ACK{id: t.get_id()}.to_string().as_bytes()).unwrap();
+                    },
+                    ExternalMsg::ACK{id} => {
+
+                    }
+                    ExternalMsg::NACK {id}=> {
+
+                    }
+                    ExternalMsg::Stop => {
+                        writer.write(ExternalMsg::Stop.to_string().as_bytes()).unwrap();
+                    }
+                }            
             }
-        } else {
-            match deserialize_pay(s.to_string()) {
-                Ok(_) => match writer.write(&ExternalMsg::ACK.to_string().as_bytes()) {
-                    Ok(_) => {}
-                    Err(_) => break,
-                },
-                Err(_) => match writer.write(&ExternalMsg::NACK.to_string().as_bytes()) {
-                    Ok(_) => {}
-                    Err(_) => break,
-                },
-            };
+            Err(_) => continue,
         }
     }
 }

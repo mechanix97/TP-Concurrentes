@@ -19,14 +19,15 @@ pub fn exec(
     leader_ok: Arc<(Mutex<bool>, Condvar)>,
     logger: Logger,
     commiter: TransactionWriter, 
-    rollbacker: TransactionWriter
+    rollbacker: TransactionWriter,
+    running: Arc<Mutex<bool>>
 ) {
     loop {
         check_leader_alive(connections.clone(), main_leader_alive.clone());
         if election(id, connections.clone()) {
             //leader
             *is_leader.lock().unwrap() = true;
-            leader::main_loop::exec(id, connections.clone(), logger.clone(), commiter.clone(), rollbacker.clone());
+            leader::main_loop::exec(id, connections.clone(), logger.clone(), commiter.clone(), rollbacker.clone(), running.clone());
         } else {
             //replic
             wait_for_leader(leader_ok.clone());

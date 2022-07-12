@@ -1,30 +1,24 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Payment {
-    pub id: i32,
-    pub amount: f32,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct BankPayment {
     id: u32,
     amount: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct FlightReservation {
     id: u32,
     amount: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct HotelReservation {
     id: u32,
     amount: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct Transaction {
     id: u32,
     bank_payment: BankPayment,
@@ -34,8 +28,10 @@ pub struct Transaction {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ExternalMsg {
-    NACK,
-    ACK,
+    Prepare {transaction: Transaction},
+    NACK {id: u32},
+    ACK {id: u32},
+    Stop,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub enum DistMsg {
@@ -98,11 +94,6 @@ impl Transaction {
 
 #[allow(dead_code)]
 pub fn deserialize_transaction(serialized: String) -> Result<Transaction, serde_json::Error> {
-    serde_json::from_str(&serialized)
-}
-
-#[allow(dead_code)]
-pub fn deserialize_pay(serialized: String) -> Result<Payment, serde_json::Error> {
     serde_json::from_str(&serialized)
 }
 

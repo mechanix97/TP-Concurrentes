@@ -1,9 +1,7 @@
 use std::env;
 use std::io;
 
-mod actor_airline;
-mod actor_bank;
-mod actor_hotel;
+mod actor_transmiter;
 mod alglobo;
 mod commons;
 mod leader;

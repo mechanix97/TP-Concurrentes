@@ -2,13 +2,20 @@ use std::sync::{Arc, Mutex};
 
 pub use crate::commons::DistMsg;
 pub use crate::connection::*;
+pub use crate::logger::*;
 
 pub fn exec(
     id: u32,
     hostname: String,
     port: String,
     connections: Arc<Mutex<Vec<Connection>>>,
+    logger: Logger
 ) {
+    logger.log(format!(
+        "received Discover from {}:{}",
+        hostname, port
+    ));
+
     //conexion a replica entrante
     let mut newconnection = Connection::new(id, hostname.clone(), port.clone());
 

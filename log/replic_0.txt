@@ -1,7 +1,2 @@
-2022-07-09 17:39:08: new connection from 127.0.0.1:61532
-2022-07-09 17:39:08: received Discover from 127.0.0.1:61532
-2022-07-09 17:39:13: start processing
-2022-07-09 17:39:13: received Ping from 127.0.0.1:61532
-2022-07-09 17:39:16: received Shutdown from 127.0.0.1:61532
-2022-07-09 17:39:16: shutting down
-2022-07-09 17:39:16: new connection from 127.0.0.1:61539
+2022-07-12 00:08:49: start processing
+2022-07-12 00:08:51: end procesing

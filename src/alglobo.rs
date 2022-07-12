@@ -11,9 +11,6 @@ use crate::leader;
 use crate::replic;
 use crate::common;
 
-pub use crate::actor_airline::{AirlineActor, FlightPrice};
-pub use crate::actor_bank::{BankActor, PaymentPrice};
-pub use crate::actor_hotel::{HotelActor, ReservationPrice};
 pub use crate::commons::{deserialize_dist, DistMsg};
 pub use crate::lib::*;
 pub use crate::logger::*;
@@ -32,10 +29,15 @@ pub struct Alglobo {
     leader_alive: Arc<AtomicBool>,
     leader_ok: Arc<(Mutex<bool>, Condvar)>,
     listener: Option<TcpListener>,
+    running: Arc<Mutex<bool>>
 }
 
 impl Alglobo {
     pub fn join(self: &mut Self) {
+        {
+            *self.running.lock().unwrap() = false;
+        }
+        println!("1"); 
         for c in &mut *self.connections.lock().unwrap() {
             c.write(DistMsg::Shutdown {
                     hostname: self.hostname.clone(),
@@ -46,16 +48,12 @@ impl Alglobo {
             )
             
         }
-
         drop(&self.threadpool);
-
         match &self.listener {
             Some(l) => l.set_nonblocking(true).unwrap(),
             None => {}
         }
-
         TcpStream::connect(format!("{}:{}", self.hostname.clone(), self.port.clone())).unwrap();
-
         match self.join_handle.take() {
             Some(h) => {
                 h.join().unwrap();
@@ -77,6 +75,7 @@ impl Alglobo {
             leader_alive: Arc::new(AtomicBool::new(false)),
             leader_ok: Arc::new((Mutex::new(false), Condvar::new())),
             listener: None,
+            running: Arc::new(Mutex::new(true)),
         }
     }
 
@@ -91,7 +90,8 @@ impl Alglobo {
 
         let connections = self.connections.clone();
         let id = self.id;
-        let mjh = thread::spawn(move || leader::main_loop::exec(id, connections, logger.clone(), commiter.clone(), rollbacker.clone()));
+        let running = self.running.clone();
+        let mjh = thread::spawn(move || leader::main_loop::exec(id, connections, logger.clone(), commiter.clone(), rollbacker.clone(), running));
 
         self.main_join_handle = Some(mjh);
     }
@@ -109,7 +109,7 @@ impl Alglobo {
         let main_leader_alive = self.leader_alive.clone();
         let is_leader = self.is_leader.clone();
         let leader_ok = self.leader_ok.clone();
-
+        let running = self.running.clone();
         //replic main loop
         logger.log(format!("Starting replic loop"));
         let mjh = thread::spawn(move || {
@@ -121,7 +121,8 @@ impl Alglobo {
                 leader_ok,
                 logger.clone(),
                 commiter.clone(), 
-                rollbacker.clone()
+                rollbacker.clone(),
+                running
             )
         });
 
@@ -186,28 +187,19 @@ impl Alglobo {
                     match deserialize_dist(s.to_string()) {
                         Ok(val) => match val {
                             DistMsg::Discover { id, hostname, port } => {
-                                logger_pool.log(format!(
-                                    "received Discover from {}:{}",
-                                    remote_host, remote_port
-                                ));
-
                                 if is_leader {
                                     leader::msg_discover::exec(
                                         id,
                                         hostname,
                                         port,
                                         connections_pool.clone(),
+                                        logger_pool.clone()
                                     );
                                 } else {
                                     replic::msg_discover::exec(id, hostname, port);
                                 }
                             }
                             DistMsg::NewReplic { id, hostname, port } => {
-                                logger_pool.log(format!(
-                                    "received NewReplic from {}:{}",
-                                    remote_host, remote_port
-                                ));
-
                                 if is_leader {
                                     leader::msg_new_replic::exec(id, hostname, port);
                                 } else {
@@ -216,18 +208,12 @@ impl Alglobo {
                                         hostname,
                                         port,
                                         connections_pool.clone(),
-                                        la.clone(),
                                         logger_pool.clone()
                                     );
                                 }
                             }
                             DistMsg::Election { id: _ } => {
-                                logger_pool.log(format!(
-                                    "received Election from {}:{}",
-                                    remote_host, remote_port
-                                ));
-
-                                replic::msg_election::exec(writer.try_clone().unwrap(), mid);
+                                replic::msg_election::exec(writer.try_clone().unwrap(), mid, remote_host.to_string(), remote_port.to_string(), logger_pool.clone());
                             }
                             DistMsg::NewLeader { id } => {
                                 logger_pool.log(format!(

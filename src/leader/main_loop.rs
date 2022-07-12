@@ -1,118 +1,95 @@
-use core::time;
 use std::fs;
 use std::io::{self, BufRead};
+use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
+
 use std::thread::sleep;
+use core::time;
+
+use actix::{Actor, System, Arbiter};
+use async_std::task::block_on;
+use futures::{join, Future};
 
 pub use crate::logger::*;
 
 pub use crate::commons::{deserialize_transaction, DistMsg};
 pub use crate::transaction_writer::*;
 pub use crate::connection::*;
+pub use crate::actor_transmiter::*;
 
 pub fn exec(
     id: u32,
     connections: Arc<Mutex<Vec<Connection>>>,
     logger: Logger,
     commiter: TransactionWriter, 
-    rollbacker: TransactionWriter
+    rollbacker: TransactionWriter,
+    running: Arc<Mutex<bool>>
 ) {
     for c in &mut *connections.lock().unwrap() {
         c.write(DistMsg::NewLeader { id: id });
     }
+    
     println!("SOY LIDER");
-
-    sleep(time::Duration::from_secs(5));
-    let _sys = actix::System::new();
-
-
+    //sleep(time::Duration::from_secs(5));
+      
     let buf_reader = continue_transactions(commiter.clone(), rollbacker.clone());
 
     logger.log("start processing".to_string());
+    
+    println!("EMPIEZP");
+    let bank_connection = TcpStream::connect("127.0.0.1:7878").unwrap();
+    let airline_connection = TcpStream::connect("127.0.0.1:7879").unwrap();
+    let hotel_connection = TcpStream::connect("127.0.0.1:7880").unwrap();
 
     for line in buf_reader.lines() {
+        if !*running.lock().unwrap(){
+            break;
+        }
+        
+        let sys = actix::System::new();
+
         let l = line.unwrap();
-        //logger.log(format!("processing transction: {}", l));
-        let transaction = deserialize_transaction(l.clone()).unwrap();
+        //println!("line {}", l);
+        //logger.log(format!("processing transction: {}", l));         
+        let transaction = deserialize_transaction(l.clone()).unwrap();        
+        
+        let bc = bank_connection.try_clone().unwrap();
+        let ac = airline_connection.try_clone().unwrap();
+        let hc = hotel_connection.try_clone().unwrap();
+       
+        let ret = sys.block_on( async { 
+            let addr_bank = Transmiter::new(bc).start();
+            let addr_airline = Transmiter::new(ac).start();
+            let addr_hotel = Transmiter::new(hc).start();
+
+            let tid= transaction.get_id();
+
+            addr_bank.send(PrepareTransaction { transaction: transaction }).await.unwrap();
+            addr_airline.send(PrepareTransaction { transaction: transaction }).await.unwrap();
+            addr_hotel.send(PrepareTransaction { transaction: transaction }).await.unwrap();
+
+            let res1 = addr_bank.send(PrepareResponse { id:  tid}).await.unwrap();
+            let res2 = addr_airline.send(PrepareResponse { id:  tid}).await.unwrap();
+            let res3 = addr_hotel.send(PrepareResponse { id:  tid}).await.unwrap();
+
+            match res1{
+                true => (),
+                false => (),
+            }
+
+        });
+        
+        System::current().stop();
+        //sys.run().unwrap();
+
 
         let mut cc = connections.lock().unwrap();
         for c in &mut*cc {
-            c.write(DistMsg::Commit{transaction: transaction.to_string()});
+            c.write(DistMsg::Commit{transaction: l.to_string()});
         }
         
     }
     println!("TERMINE");
-    /*   sys.block_on(async {
-
-        let addr_bank = BankActor { bank_connection: TcpStream::connect("127.0.0.1:7878").unwrap() }.start();
-        let addr_hotel = HotelActor { hotel_connection: TcpStream::connect("127.0.0.1:7879").unwrap() }.start();
-        let addr_airline = AirlineActor { airline_connection: TcpStream::connect("127.0.0.1:7880").unwrap() }.start();
-
-        for line in buf_reader.lines() {
-            let transaction = line.unwrap();
-
-            let separated_line: Vec<&str> = transaction.split(',').collect();
-
-            let transaction_id = separated_line[0].trim().to_string().parse::<i32>().unwrap();
-            let bank_payment = separated_line[1].trim().to_string().parse::<f32>().unwrap();
-            let hotel_payment = separated_line[2].trim().to_string().parse::<f32>().unwrap();
-            let airline_payment = separated_line[3].trim().to_string().parse::<f32>().unwrap();
-
-            let result_hotel = addr_hotel.send(ReservationPrice(transaction_id, hotel_payment));
-
-            let result_bank = addr_bank.send(PaymentPrice(transaction_id, bank_payment));
-
-            let result_airline = addr_airline.send(FlightPrice(transaction_id, airline_payment));
-
-
-            let res = join!(result_hotel, result_bank, result_airline ); //Resultado
-            let result0 =match res.0 {
-                Ok(val) => {match val{
-                    Ok(val) => val,
-                    Err(_) => false
-                }}
-                Err(_) => false
-            };
-            let result1 =match res.1 {
-                Ok(val) => {match val{
-                    Ok(val) => val,
-                    Err(_) => false
-                }}
-                Err(_) => false
-            };
-            let result2 =match res.2 {
-                Ok(val) => {match val{
-                    Ok(val) => val,
-                    Err(_) => false
-                }}
-                Err(_) => false
-            };
-
-            if result0 && result1 && result2 {
-                for c in &mut*connections.lock().unwrap() {
-                    c.0.write(&(serde_json::to_string(&DistMsg::Commit{transaction: transaction.clone()})
-                        .unwrap()
-                            + "\n")
-                            .as_bytes(),
-                    )
-                    .unwrap();
-                }
-            } else {
-                for c in &mut*connections.lock().unwrap() {
-                    c.0.write(&(serde_json::to_string(&DistMsg::Rollback{transaction: transaction.clone()})
-                        .unwrap()
-                            + "\n")
-                            .as_bytes(),
-                    )
-                    .unwrap();
-                }
-            }
-        }
-    });
-
-    System::current().stop();
-    sys.run().unwrap();
-    */
     logger.log("end procesing".to_string());
 }
 
@@ -124,7 +101,6 @@ fn continue_transactions(commiter: TransactionWriter, rollbacker: TransactionWri
     let mut ll = String::new() ;
     let reader = io::BufReader::new(file);
     if commiter.last_line().is_none() && rollbacker.last_line().is_none() {
-        println!("SON NONE");
         return reader;
     } else if !commiter.last_line().is_none() && !rollbacker.last_line().is_none(){
         let lc = commiter.last_line().unwrap();
