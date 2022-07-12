@@ -72,6 +72,11 @@ impl Connection{
         self.id
     }
 
+    pub fn set_id(&mut self, id: u32){
+        self.id = id;
+    }
+ 
+
     pub fn get_hostname(&self) -> String {
         self.hostname.clone()
     }

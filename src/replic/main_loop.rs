@@ -28,6 +28,7 @@ pub fn exec(
             //leader
             *is_leader.lock().unwrap() = true;
             leader::main_loop::exec(id, connections.clone(), logger.clone(), commiter.clone(), rollbacker.clone(), running.clone());
+            break;
         } else {
             //replic
             wait_for_leader(leader_ok.clone());

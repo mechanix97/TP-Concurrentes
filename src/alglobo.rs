@@ -149,6 +149,8 @@ impl Alglobo {
             };
 
             let mid = id;
+            let hostname = h.clone();
+            let port = p.clone();
             let connections_pool = connections.clone();
             let la = leader_alive.clone();
             let il = is_leader.clone();
@@ -159,6 +161,8 @@ impl Alglobo {
 
             pool.execute(move || {
                 let read_stream = stream;
+                let hostname_pool = hostname.clone();
+                let port_pool = port.clone();
                 let mut writer = read_stream.try_clone().unwrap();
                 let mut reader = io::BufReader::new(read_stream);
                 let remote_host = writer.peer_addr().unwrap().ip();
@@ -185,31 +189,24 @@ impl Alglobo {
 
                     match deserialize_dist(s.to_string()) {
                         Ok(val) => match val {
-                            DistMsg::Discover { id, hostname, port } => {
-                                if is_leader {
-                                    leader::msg_discover::exec(
-                                        id,
-                                        hostname,
-                                        port,
-                                        connections_pool.clone(),
-                                        logger_pool.clone()
-                                    );
-                                } else {
-                                    replic::msg_discover::exec(id, hostname, port);
-                                }
+                            DistMsg::Discover { id, hostname, port , is_leader: _} => {
+                                common::msg_discover::exec(
+                                    id,
+                                    hostname,
+                                    port,
+                                    connections_pool.clone(),
+                                    logger_pool.clone()
+                                );
+                                writer.write(&DistMsg::Discover{id: mid, hostname: hostname_pool.clone(), port: port_pool.clone(), is_leader: is_leader}.to_string().as_bytes()).unwrap();
                             }
-                            DistMsg::NewReplic { id, hostname, port } => {
-                                if is_leader {
-                                    leader::msg_new_replic::exec(id, hostname, port);
-                                } else {
-                                    replic::msg_new_replic::exec(
-                                        id,
-                                        hostname,
-                                        port,
-                                        connections_pool.clone(),
-                                        logger_pool.clone()
-                                    );
-                                }
+                            DistMsg::NewReplic { id, hostname, port } => {   
+                                common::msg_new_replic::exec(
+                                    id,
+                                    hostname,
+                                    port,
+                                    connections_pool.clone(),
+                                    logger_pool.clone()
+                                );                                
                             }
                             DistMsg::Election { id: _ } => {
                                 replic::msg_election::exec(writer.try_clone().unwrap(), mid, remote_host.to_string(), remote_port.to_string(), logger_pool.clone());
@@ -292,14 +289,35 @@ impl Alglobo {
 
     fn connect(&mut self, replic_hostname: String, replic_port: String) {
         let mut newconnetion = Connection::new(0, replic_hostname, replic_port);
-        
-        newconnetion.set_as_leader();
-        
+ 
         newconnetion.write(DistMsg::Discover {
             id: self.id,
             hostname: self.hostname.to_string(),
             port: self.port.to_string(),
+            is_leader: false
         });
+
+        let mut reader = io::BufReader::new( newconnetion.get_stream());
+        let mut s = String::new();
+
+        let len = match reader.read_line(&mut s) {
+            Ok(val) => val,
+            Err(_err) => 0,
+        };
+        if s.is_empty() || len == 0 {
+            return;
+        }
+        let nc = &mut newconnetion;
+
+        match deserialize_dist(s).unwrap(){
+            DistMsg::Discover{id, hostname: _, port: _, is_leader} => {
+                nc.set_id(id);
+                if is_leader {
+                    nc.set_as_leader();
+                }
+            }
+            _ => return
+        }
 
         {   //agrego conexion del leader a la lista (asumo id = 0 mas bajo posible)
             self.connections

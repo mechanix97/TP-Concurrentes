@@ -116,7 +116,7 @@ impl Actor for Transmiter {
                         ExternalMsg::NACK{id: _ } =>  {    
                             add.try_send(NackResponseMsg{}).unwrap();
                         },
-                        ExternalMsg::Stop => break,
+                        ExternalMsg::Stop{stop} => {if stop {break}},
                         _ => ()
                     },
                     Err(_) => println!("ERR"),
@@ -127,7 +127,7 @@ impl Actor for Transmiter {
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        self.stream.write_all(ExternalMsg::Stop.to_string().as_bytes())
+        self.stream.write_all(ExternalMsg::Stop{stop: false}.to_string().as_bytes())
         .unwrap();
         self.handle.take().unwrap().join().unwrap();
     }

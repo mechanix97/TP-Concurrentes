@@ -47,8 +47,11 @@ fn handle_connection(mut stream: TcpStream) {
                             writer.write(ExternalMsg::ACK{id: t.get_id()}.to_string().as_bytes()).unwrap();
                         }                       
                     },
-                    ExternalMsg::Stop => {
-                        writer.write(ExternalMsg::Stop.to_string().as_bytes()).unwrap();
+                    ExternalMsg::Stop{stop} => {
+                        if stop {
+                            break
+                        }
+                        writer.write(ExternalMsg::Stop{stop: true}.to_string().as_bytes()).unwrap();
                     },
                     _ => (),
                 }            

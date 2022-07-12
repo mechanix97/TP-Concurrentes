@@ -11,6 +11,7 @@ pub use crate::commons::{deserialize_transaction, DistMsg, ExternalMsg};
 pub use crate::transaction_writer::*;
 pub use crate::connection::*;
 pub use crate::actor_transmiter::*;
+pub use crate::stats::*;
 
 pub fn exec(
     id: u32,
@@ -24,23 +25,26 @@ pub fn exec(
         c.write(DistMsg::NewLeader { id: id });
     }
     
-    println!("SOY LIDER");
     //sleep(time::Duration::from_secs(5));
       
     let buf_reader = continue_transactions(commiter.clone(), rollbacker.clone());
 
     logger.log("start processing".to_string());
     
-    println!("EMPIEZO");
+    println!("Empiezo a procesar transacciones");
     let mut bank_connection = TcpStream::connect("127.0.0.1:7878").unwrap();
     let mut airline_connection = TcpStream::connect("127.0.0.1:7879").unwrap();
     let mut hotel_connection = TcpStream::connect("127.0.0.1:7880").unwrap();
+
+    let mut stats = Stats::new();
 
     for line in buf_reader.lines() {
         if !*running.lock().unwrap(){
             break;
         }
         
+        stats.start_transaction();
+
         let sys = actix::System::new();
         
         let transaction_line = line.unwrap();
@@ -97,8 +101,15 @@ pub fn exec(
                 c.write(DistMsg::Rollback{transaction: transaction_line.to_string()});
             }
         }
+        stats.end_transaction(ret);
     }
-    println!("TERMINE");
+    stats.stop();
+
+    bank_connection.write(ExternalMsg::Stop{stop: true}.to_string().as_bytes()).unwrap();
+    airline_connection.write(ExternalMsg::Stop{stop: true}.to_string().as_bytes()).unwrap();
+    hotel_connection.write(ExternalMsg::Stop{stop: true}.to_string().as_bytes()).unwrap();
+
+
     logger.log("end procesing".to_string());
 }
 

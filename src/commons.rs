@@ -31,7 +31,7 @@ pub enum ExternalMsg {
     Prepare {transaction: Transaction},
     NACK {id: u32},
     ACK {id: u32},
-    Stop,
+    Stop {stop: bool},
     Commit {id: u32},
     Rollback{id: u32},
 }
@@ -41,6 +41,7 @@ pub enum DistMsg {
         id: u32,
         hostname: String,
         port: String,
+        is_leader: bool
     },
     NewReplic {
         id: u32,
